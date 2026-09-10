@@ -1,0 +1,223 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum QuizMode {
+  SINGLE
+  MULTIPLAYER
+}
+
+enum QuizStatus {
+  DRAFT
+  WAITING
+  LIVE
+  FINISHED
+  CANCELLED
+}
+
+enum AttemptStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  SUBMITTED
+  TIMED_OUT
+}
+
+model User {
+  id               String            @id @default(cuid())
+  authProviderId   String            @unique
+  firebaseUid      String?           @unique
+  email            String?           @unique
+  phoneNumber      String?           @unique
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  profile          Profile?
+  quizzesCreated   Quiz[]            @relation("CreatedQuizzes")
+  attempts         Attempt[]
+  participants     QuizParticipant[]
+
+  @@map("users")
+}
+
+model Profile {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name             String
+  username         String   @unique
+  institution      String
+  avatarUrl        String?
+  bio              String?
+  profileCompleted Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("profiles")
+}
+
+model Course {
+  id        String     @id @default(cuid())
+  name      String     @unique
+  slug      String     @unique
+  topics    Topic[]
+  questions Question[]
+  quizzes   Quiz[]
+
+  @@map("courses")
+}
+
+model Topic {
+  id          String      @id @default(cuid())
+  courseId    String
+  course      Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  name        String
+  slug        String
+  questions   Question[]
+  quizTopics  QuizTopic[]
+
+  @@unique([courseId, slug])
+  @@map("topics")
+}
+
+model Question {
+  id               String            @id @default(cuid())
+  courseId         String
+  course           Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  topicId          String
+  topic            Topic             @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  difficulty       Difficulty        @default(MEDIUM)
+  type             String            @default("mcq")
+  question         String
+  code             String?
+  options          String
+  correctAnswer    String
+  explanation      String
+  generationSource String            @default("system")
+  createdAt        DateTime          @default(now())
+  quizQuestions    QuizQuestion[]
+  attemptQuestions AttemptQuestion[]
+  answers          Answer[]
+
+  @@index([courseId, topicId, difficulty])
+  @@map("questions")
+}
+
+model Quiz {
+  id            String            @id @default(cuid())
+  creatorId     String
+  creator       User              @relation("CreatedQuizzes", fields: [creatorId], references: [id], onDelete: Cascade)
+  name          String
+  courseId      String
+  course        Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  questionCount Int
+  duration      Int
+  mode          QuizMode          @default(SINGLE)
+  status        QuizStatus        @default(DRAFT)
+  roomCode      String?           @unique
+  description   String?
+  createdAt     DateTime          @default(now())
+  startedAt     DateTime?
+  endedAt       DateTime?
+  quizTopics    QuizTopic[]
+  quizQuestions QuizQuestion[]
+  attempts      Attempt[]
+  participants  QuizParticipant[]
+
+  @@index([roomCode, status])
+  @@map("quizzes")
+}
+
+model QuizTopic {
+  id      String @id @default(cuid())
+  quizId  String
+  quiz    Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  topicId String
+  topic   Topic  @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, topicId])
+  @@map("quiz_topics")
+}
+
+model QuizQuestion {
+  id         String   @id @default(cuid())
+  quizId     String
+  quiz       Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  orderIndex Int
+
+  @@unique([quizId, questionId])
+  @@map("quiz_questions")
+}
+
+model Attempt {
+  id               String            @id @default(cuid())
+  quizId           String
+  quiz             Quiz              @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startedAt        DateTime          @default(now())
+  expiresAt        DateTime
+  submittedAt      DateTime?
+  score            Float?
+  percentage       Float?
+  accuracy         Float?
+  timeTaken        Int?
+  status           AttemptStatus     @default(IN_PROGRESS)
+  attemptQuestions AttemptQuestion[]
+  answers          Answer[]
+
+  @@index([userId, status])
+  @@index([quizId, status])
+  @@map("attempts")
+}
+
+model AttemptQuestion {
+  id         String   @id @default(cuid())
+  attemptId  String
+  attempt    Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  orderIndex Int
+
+  @@unique([attemptId, questionId])
+  @@map("attempt_questions")
+}
+
+model Answer {
+  id             String   @id @default(cuid())
+  attemptId      String
+  attempt        Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId     String
+  question       Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  selectedAnswer String
+  isCorrect      Boolean
+  answeredAt     DateTime @default(now())
+
+  @@unique([attemptId, questionId])
+  @@map("answers")
+}
+
+model QuizParticipant {
+  id         String   @id @default(cuid())
+  quizId     String
+  quiz       Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt   DateTime @default(now())
+  status     String   @default("JOINED")
+  lastSeenAt DateTime @default(now())
+
+  @@unique([quizId, userId])
+  @@map("quiz_participants")
+}
