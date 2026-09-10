@@ -215,6 +215,17 @@ export function GoogleAuthModal({
                 )}
               </div>
 
+              {/* Browser OAuth option */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
+                <span className="text-slate-400">Prefer Google account page?</span>
+                <a
+                  href="/api/auth/google"
+                  className="text-blue-600 dark:text-blue-400 font-semibold hover:underline"
+                >
+                  Official Google OAuth &rarr;
+                </a>
+              </div>
+
               {/* Google Disclaimer */}
               <div className="pt-2 text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed text-center">
                 To continue, Google will share your name, email address, and profile picture with

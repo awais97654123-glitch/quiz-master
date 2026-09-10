@@ -56,6 +56,10 @@ const nextConfig: NextConfig = {
       process.env.NEXT_PUBLIC_SITE_URL,
       "https://quiz-join.vercel.app"
     ),
+    NEXT_PUBLIC_GOOGLE_CLIENT_ID: cleanEnv(
+      process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID,
+      ""
+    ),
   },
 };
 
