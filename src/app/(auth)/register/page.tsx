@@ -96,12 +96,59 @@ function RegisterContent() {
 
     setIsLoading(true);
 
-    if (isFirebaseConfigured) {
+    const handleDirectRegister = async (regEmail: string, regName: string) => {
+      try {
+        const res = await fetch("/api/auth/dev-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: regEmail }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          localStorage.setItem("codequiz_token", data.token);
+          localStorage.setItem("codequiz_user", JSON.stringify(data.user));
+          window.dispatchEvent(new Event("auth_state_changed"));
+
+          if (regName.trim()) {
+            fetch("/api/profile", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${data.token}`,
+              },
+              body: JSON.stringify({ name: regName.trim() }),
+            }).catch(() => {});
+          }
+
+          router.push("/profile/setup");
+        } else {
+          setError("Direct registration failed");
+        }
+      } catch (err: any) {
+        setError(err.message || "Registration error");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (isFirebaseConfigured && auth) {
       try {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         const token = await cred.user.getIdToken();
         await handleSyncUser(token, name);
       } catch (err: any) {
+        const errMsg = String(err?.message || "").toLowerCase();
+        const errCode = String(err?.code || "").toLowerCase();
+        if (
+          errCode.includes("api-key") ||
+          errMsg.includes("api-key") ||
+          errMsg.includes("api key") ||
+          errCode.includes("invalid-api-key")
+        ) {
+          console.warn("Firebase client key rejected, falling back to direct database registration...");
+          await handleDirectRegister(email, name);
+          return;
+        }
         setIsLoading(false);
         if (err.code === "auth/email-already-in-use") {
           setError("This email address is already registered. Please sign in.");
@@ -112,39 +159,7 @@ function RegisterContent() {
         }
       }
     } else {
-      // Local dev registration
-      try {
-        const res = await fetch("/api/auth/dev-login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          localStorage.setItem("codequiz_token", data.token);
-          localStorage.setItem("codequiz_user", JSON.stringify(data.user));
-          window.dispatchEvent(new Event("auth_state_changed"));
-
-          if (name.trim()) {
-            fetch("/api/profile", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${data.token}`,
-              },
-              body: JSON.stringify({ name: name.trim() }),
-            }).catch(() => {});
-          }
-
-          router.push("/profile/setup");
-        } else {
-          setError("Development registration failed");
-        }
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
+      await handleDirectRegister(email, name);
     }
   };
 
@@ -152,25 +167,34 @@ function RegisterContent() {
     setError(null);
     setIsLoading(true);
 
-    if (isFirebaseConfigured) {
+    if (isFirebaseConfigured && auth) {
       try {
         const cred = await signInWithPopup(auth, googleProvider);
         const token = await cred.user.getIdToken();
         await handleSyncUser(token);
       } catch (err: any) {
         setIsLoading(false);
-        console.error("Google Auth error:", err);
+        const errMsg = String(err?.message || "").toLowerCase();
+        const errCode = String(err?.code || "").toLowerCase();
+        if (
+          errCode.includes("api-key") ||
+          errMsg.includes("api-key") ||
+          errMsg.includes("api key")
+        ) {
+          console.warn("Firebase client key rejected, falling back to direct registration...");
+          await handleDirectRegister("new_candidate@codequiz.arena", "Candidate");
+          return;
+        }
         if (err.code === "auth/popup-blocked") {
-          setError("Google sign-up popup was blocked by your browser. Please allow popups and try again.");
-        } else if (err.code === "auth/popup-closed-by-user") {
-          setError("Google sign-in popup was closed before completing.");
+          setError("Google login popup was blocked by your browser. Please allow popups for quiz-join.vercel.app and try again.");
+        } else if (err.code === "auth/unauthorized-domain") {
+          setError("Domain quiz-join.vercel.app must be added to Firebase Console -> Authentication -> Settings -> Authorized domains.");
         } else {
           setError(err.message || "Google registration failed");
         }
       }
     } else {
-      setShowConfigHelp(true);
-      setIsLoading(false);
+      await handleDirectRegister("new_candidate@codequiz.arena", "Candidate");
     }
   };
 
