@@ -24,8 +24,13 @@ export function Navbar() {
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
 
-  // Show main marketing navbar ONLY on the home landing page
-  if (pathname !== "/") {
+  // Hide only on immersive active exam sessions
+  if (
+    pathname.startsWith("/live/") ||
+    (pathname.startsWith("/quiz/single/") && pathname !== "/quiz/single/setup") ||
+    pathname.startsWith("/room/") ||
+    pathname.startsWith("/quiz/result/")
+  ) {
     return null;
   }
 
@@ -71,10 +76,11 @@ export function Navbar() {
   };
 
   const navLinks = [
-    { href: "/", label: "Home", isActive: true },
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/quiz/single/setup", label: "Quizzes" },
-    { href: "#about", label: "About" },
+    { href: "/", label: "Home", isActive: pathname === "/" },
+    { href: "/quiz", label: "Quizzes", isActive: pathname === "/quiz" || pathname.startsWith("/quiz/") && !pathname.includes("setup") },
+    { href: "/topics", label: "Topics", isActive: pathname.startsWith("/topics") },
+    { href: "/online-test", label: "Online Tests", isActive: pathname.startsWith("/online-test") },
+    { href: "/dashboard", label: "Dashboard", isActive: pathname.startsWith("/dashboard") },
   ];
 
   return (

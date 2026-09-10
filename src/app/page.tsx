@@ -307,7 +307,7 @@ export default function HomePage() {
 
                 {/* Card CTA Button */}
                 <Link
-                  href="/quiz/single/setup?course=html"
+                  href="/quiz/html"
                   className="w-full py-3 rounded-full bg-gradient-to-r from-[#059669] to-[#10B981] hover:from-[#047857] hover:to-[#059669] text-white font-bold text-xs shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/50 transition-all flex items-center justify-center gap-2 cursor-pointer relative z-10"
                 >
                   <span>Practice HTML</span>
@@ -355,7 +355,7 @@ export default function HomePage() {
 
                 {/* Card CTA Button */}
                 <Link
-                  href="/quiz/single/setup?course=css"
+                  href="/quiz/css"
                   className="w-full py-3 rounded-full bg-gradient-to-r from-[#2563EB] to-[#38BDF8] hover:from-[#1D4ED8] hover:to-[#0284C7] text-white font-bold text-xs shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 transition-all flex items-center justify-center gap-2 cursor-pointer relative z-10"
                 >
                   <span>Practice CSS</span>
@@ -381,18 +381,18 @@ export default function HomePage() {
                   </div>
 
                   <div>
-                    <h3 className="text-lg font-black text-slate-900 dark:text-white group-hover:text-amber-600 dark:group-hover:text-amber-300 transition-colors">
+                    <h3 className="text-lg font-black text-slate-900 dark:text-white group-hover:text-amber-500 dark:group-hover:text-amber-300 transition-colors">
                       JavaScript Core
                     </h3>
                     <p className="text-xs text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">
-                      Event loop, closures, promises, async/await, array algorithms, prototypes, and ES6+ features.
+                      Core syntax, closures, promises, async/await, DOM, event loop, and modern ES6+ standards.
                     </p>
                   </div>
 
                   {/* Stats */}
                   <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 pt-1">
                     <span className="flex items-center gap-1.5">
-                      <Users className="w-3.5 h-3.5 text-cyan-500 dark:text-cyan-400" /> 36 Topics
+                      <Users className="w-3.5 h-3.5 text-cyan-500 dark:text-cyan-400" /> 38 Topics
                     </span>
                     <span>•</span>
                     <span className="flex items-center gap-1.5">
@@ -403,7 +403,7 @@ export default function HomePage() {
 
                 {/* Card CTA Button */}
                 <Link
-                  href="/quiz/single/setup?course=javascript"
+                  href="/quiz/javascript"
                   className="w-full py-3 rounded-full bg-gradient-to-r from-[#D97706] to-[#F59E0B] hover:from-[#B45309] hover:to-[#D97706] text-white font-bold text-xs shadow-lg shadow-amber-600/30 hover:shadow-amber-600/50 transition-all flex items-center justify-center gap-2 cursor-pointer relative z-10"
                 >
                   <span>Practice JS</span>
@@ -510,18 +510,23 @@ export default function HomePage() {
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">Curriculums</h4>
                 <ul className="space-y-1.5 text-xs">
                   <li>
-                    <Link href="/quiz/single/setup?course=html" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
-                      HTML5 Mastery
+                    <Link href="/quiz/html" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
+                      HTML5 Quiz &amp; MCQs
                     </Link>
                   </li>
                   <li>
-                    <Link href="/quiz/single/setup?course=css" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
-                      CSS3 & Flexbox/Grid
+                    <Link href="/quiz/css" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
+                      CSS3 &amp; Flexbox/Grid
                     </Link>
                   </li>
                   <li>
-                    <Link href="/quiz/single/setup?course=javascript" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
-                      JavaScript Core & Async
+                    <Link href="/quiz/javascript" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
+                      JavaScript Core &amp; Async
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/topics" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
+                      All 108 Topics Index
                     </Link>
                   </li>
                 </ul>
@@ -529,21 +534,26 @@ export default function HomePage() {
 
               {/* Platform Features */}
               <div className="space-y-2.5">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">Platform</h4>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">Practice &amp; Arena</h4>
                 <ul className="space-y-1.5 text-xs">
                   <li>
-                    <Link href="/quiz/single/setup" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
-                      Single Quiz Arena
+                    <Link href="/quiz" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
+                      All Quizzes Catalog
                     </Link>
                   </li>
                   <li>
-                    <Link href="/quiz/create/setup" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
-                      Create Live Room
+                    <Link href="/online-test" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
+                      Timed Online Tests
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/mcq" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
+                      Web Development MCQs
                     </Link>
                   </li>
                   <li>
                     <Link href="/join" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
-                      Join by PIN / QR
+                      Join by PIN / Code
                     </Link>
                   </li>
                   <li>

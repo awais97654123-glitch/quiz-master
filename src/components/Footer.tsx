@@ -13,15 +13,12 @@ export function Footer() {
     return null;
   }
 
-  // Dashboard pages also have their own full height layout
+  // Hide only on immersive active exam sessions
   if (
-    pathname.startsWith("/quiz/") ||
-    pathname.startsWith("/room/") ||
     pathname.startsWith("/live/") ||
-    pathname === "/history" ||
-    pathname === "/leaderboard" ||
-    pathname === "/profile" ||
-    pathname.startsWith("/profile/")
+    (pathname.startsWith("/quiz/single/") && pathname !== "/quiz/single/setup") ||
+    pathname.startsWith("/room/") ||
+    pathname.startsWith("/quiz/result/")
   ) {
     return null;
   }
@@ -46,47 +43,52 @@ export function Footer() {
           </div>
 
           <div>
-            <h4 className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wider mb-3">Courses</h4>
+            <h4 className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wider mb-3">Courses &amp; Quizzes</h4>
             <ul className="space-y-2 text-xs">
               <li>
-                <Link href="/quiz/single/setup?course=html" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
-                  HTML5 & Semantics
+                <Link href="/quiz/html" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
+                  HTML5 Quiz &amp; MCQs
                 </Link>
               </li>
               <li>
-                <Link href="/quiz/single/setup?course=css" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
-                  CSS3, Flexbox & Grid
+                <Link href="/quiz/css" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
+                  CSS3, Flexbox &amp; Grid
                 </Link>
               </li>
               <li>
-                <Link href="/quiz/single/setup?course=javascript" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
-                  Modern JavaScript (ES6+)
+                <Link href="/quiz/javascript" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
+                  Modern JavaScript Quiz
+                </Link>
+              </li>
+              <li>
+                <Link href="/topics" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
+                  All 108 Curriculum Topics
                 </Link>
               </li>
             </ul>
           </div>
 
           <div>
-            <h4 className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wider mb-3">Quick Links</h4>
+            <h4 className="text-xs font-semibold text-slate-900 dark:text-white uppercase tracking-wider mb-3">Practice Tests</h4>
             <ul className="space-y-2 text-xs">
               <li>
-                <Link href="/quiz/single/setup" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
-                  Single Quiz
+                <Link href="/quiz" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
+                  All Online Quizzes
                 </Link>
               </li>
               <li>
-                <Link href="/quiz/create/setup" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
-                  Create Quiz
+                <Link href="/online-test" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
+                  Timed Online Tests
                 </Link>
               </li>
               <li>
-                <Link href="/join" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
-                  Join Room
+                <Link href="/mcq" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
+                  Web Development MCQs
                 </Link>
               </li>
               <li>
                 <Link href="/leaderboard" className="hover:text-cyan-600 dark:hover:text-cyan-400 transition-colors">
-                  Leaderboard
+                  Global Leaderboard
                 </Link>
               </li>
             </ul>
