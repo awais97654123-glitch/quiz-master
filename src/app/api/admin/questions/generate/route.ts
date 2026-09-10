@@ -61,7 +61,11 @@ export async function POST(req: NextRequest) {
             options: JSON.stringify(q.options),
             correctAnswer: q.correctAnswer,
             explanation: q.explanation,
-            generationSource: process.env.GEMINI_API_KEY ? "gemini" : "curriculum_engine",
+            generationSource: process.env.GEMINI_API_KEY
+              ? "gemini"
+              : process.env.OPENAI_API_KEY
+              ? "openai"
+              : "curriculum_engine",
           },
         });
         savedCount++;

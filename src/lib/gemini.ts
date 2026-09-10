@@ -24,7 +24,96 @@ export const QuestionSchema = z.object({
 export type GeneratedQuestion = z.infer<typeof QuestionSchema>;
 
 /**
- * Generate questions via Google Gemini API
+ * Generate questions via OpenAI API
+ */
+export async function generateQuestionsWithOpenAI(
+  course: string,
+  topic: string,
+  difficulty: "EASY" | "MEDIUM" | "HARD" = "MEDIUM",
+  count: number = 3
+): Promise<GeneratedQuestion[]> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey || apiKey.trim() === "") {
+    return [];
+  }
+
+  try {
+    const prompt = `You are an expert exam designer and technical educator in web development.
+Generate ${count} high-quality, educationally rigorous multiple choice questions for:
+- Course: ${course}
+- Topic: ${topic}
+- Difficulty: ${difficulty}
+
+Style variety:
+Mix conceptual questions, code snippet analysis, output prediction, and debugging scenarios.
+Ensure the code snippet (if provided) is syntactically accurate.
+
+Return JSON in this format:
+{
+  "questions": [
+    {
+      "course": "${course}",
+      "topic": "${topic}",
+      "difficulty": "${difficulty.toLowerCase()}",
+      "type": "mcq",
+      "question": "Clear, unambiguous question text",
+      "code": null,
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctAnswer": "Exact string of the correct option",
+      "explanation": "Clear academic explanation of why this answer is correct and why others are wrong."
+    }
+  ]
+}`;
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "You are a professional educational quiz generator that responds strictly in valid JSON format." },
+          { role: "user", content: prompt },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.5,
+      }),
+    });
+
+    if (!res.ok) {
+      console.warn("OpenAI API response error:", res.status, await res.text());
+      return [];
+    }
+
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) return [];
+
+    const parsedData = JSON.parse(content);
+    const questionsArray = Array.isArray(parsedData)
+      ? parsedData
+      : Array.isArray(parsedData.questions)
+      ? parsedData.questions
+      : [parsedData];
+
+    const validatedQuestions: GeneratedQuestion[] = [];
+    for (const item of questionsArray) {
+      const parsed = QuestionSchema.safeParse(item);
+      if (parsed.success) {
+        validatedQuestions.push(parsed.data);
+      }
+    }
+    return validatedQuestions;
+  } catch (err) {
+    console.error("OpenAI generation failed:", err);
+    return [];
+  }
+}
+
+/**
+ * Generate questions via Google Gemini API or OpenAI with curriculum fallback
  */
 export async function generateQuestionsWithGemini(
   course: string,
@@ -32,24 +121,22 @@ export async function generateQuestionsWithGemini(
   difficulty: "EASY" | "MEDIUM" | "HARD" = "MEDIUM",
   count: number = 3
 ): Promise<GeneratedQuestion[]> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+  const openAiKey = process.env.OPENAI_API_KEY;
 
-  if (!apiKey || apiKey.trim() === "") {
-    // If no API key configured, use our internal verified curriculum fallback generator
-    return generateCurriculumFallbackQuestions(course, topic, difficulty, count);
-  }
+  // 1. Try Google Gemini if configured
+  if (geminiKey && geminiKey.trim() !== "") {
+    try {
+      const genAI = new GoogleGenerativeAI(geminiKey);
+      const model = genAI.getGenerativeModel({
+        model: "gemini-1.5-flash",
+        generationConfig: {
+          responseMimeType: "application/json",
+          temperature: 0.4,
+        },
+      });
 
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-        temperature: 0.4,
-      },
-    });
-
-    const prompt = `
+      const prompt = `
 You are an expert exam designer and technical educator in web development.
 Generate ${count} high-quality, educationally rigorous multiple choice questions for:
 - Course: ${course}
@@ -76,31 +163,44 @@ Return a JSON array of objects adhering strictly to this schema:
 ]
 `;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    const rawData = JSON.parse(text);
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+      const rawData = JSON.parse(text);
 
-    const questionsArray = Array.isArray(rawData) ? rawData : [rawData];
-    const validatedQuestions: GeneratedQuestion[] = [];
+      const questionsArray = Array.isArray(rawData) ? rawData : [rawData];
+      const validatedQuestions: GeneratedQuestion[] = [];
 
-    for (const item of questionsArray) {
-      const parsed = QuestionSchema.safeParse(item);
-      if (parsed.success) {
-        validatedQuestions.push(parsed.data);
-      } else {
-        console.warn("Rejected invalid generated question:", parsed.error.format());
+      for (const item of questionsArray) {
+        const parsed = QuestionSchema.safeParse(item);
+        if (parsed.success) {
+          validatedQuestions.push(parsed.data);
+        } else {
+          console.warn("Rejected invalid generated question:", parsed.error.format());
+        }
       }
-    }
 
-    if (validatedQuestions.length === 0) {
-      return generateCurriculumFallbackQuestions(course, topic, difficulty, count);
+      if (validatedQuestions.length > 0) {
+        return validatedQuestions;
+      }
+    } catch (error) {
+      console.warn("Gemini question generation error, checking OpenAI fallback...", error);
     }
-
-    return validatedQuestions;
-  } catch (error) {
-    console.error("Gemini question generation error, using curriculum fallback:", error);
-    return generateCurriculumFallbackQuestions(course, topic, difficulty, count);
   }
+
+  // 2. Try OpenAI if configured
+  if (openAiKey && openAiKey.trim() !== "") {
+    try {
+      const openAiQuestions = await generateQuestionsWithOpenAI(course, topic, difficulty, count);
+      if (openAiQuestions.length > 0) {
+        return openAiQuestions;
+      }
+    } catch (error) {
+      console.warn("OpenAI fallback failed, resorting to curriculum generator:", error);
+    }
+  }
+
+  // 3. Curriculum fallback generator
+  return generateCurriculumFallbackQuestions(course, topic, difficulty, count);
 }
 
 /**
