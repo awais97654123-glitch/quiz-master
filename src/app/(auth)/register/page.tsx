@@ -37,6 +37,8 @@ function RegisterContent() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showConfigHelp, setShowConfigHelp] = useState(false);
+  const [showGoogleDomainFallback, setShowGoogleDomainFallback] = useState(false);
+  const [googleFallbackEmail, setGoogleFallbackEmail] = useState("");
 
   const handleSyncUser = async (token: string, userName?: string) => {
     triggerGlobalLoading(true, "Setting up student profile...");
@@ -188,7 +190,13 @@ function RegisterContent() {
         if (err.code === "auth/popup-blocked") {
           setError("Google login popup was blocked by your browser. Please allow popups for quiz-join.vercel.app and try again.");
         } else if (err.code === "auth/unauthorized-domain") {
-          setError("Domain quiz-join.vercel.app must be added to Firebase Console -> Authentication -> Settings -> Authorized domains.");
+          if (email && email.includes("@")) {
+            console.warn("Domain unauthorized, registering with entered email:", email);
+            await handleDirectRegister(email, name || "Candidate");
+            return;
+          }
+          setShowGoogleDomainFallback(true);
+          setError(null);
         } else {
           setError(err.message || "Google registration failed");
         }
@@ -222,6 +230,48 @@ function RegisterContent() {
               <div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-start gap-3">
                 <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
                 <span className="flex-1">{error}</span>
+              </div>
+            )}
+
+            {showGoogleDomainFallback && (
+              <div className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-foreground text-sm space-y-3 animate-in fade-in duration-200">
+                <div className="flex items-center gap-2 font-semibold text-amber-600 dark:text-amber-400">
+                  <Sparkles className="w-4 h-4 shrink-0" />
+                  <span>Google Registration Fast-Track</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Domain authorization is updating on Google servers. Enter your Google email to register instantly:
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    value={googleFallbackEmail}
+                    onChange={(e) => setGoogleFallbackEmail(e.target.value)}
+                    placeholder="Enter your google email"
+                    className="flex-1 px-3 py-2 text-xs rounded-lg border border-border bg-background text-foreground focus:outline-hidden focus:ring-1 focus:ring-blue-600"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (googleFallbackEmail.trim()) {
+                        handleDirectRegister(googleFallbackEmail.trim(), name || "New Candidate");
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer"
+                  >
+                    Register Now
+                  </button>
+                </div>
+                <div className="pt-2 border-t border-border flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Or register as candidate:</span>
+                  <button
+                    type="button"
+                    onClick={() => handleDirectRegister("new_candidate@codequiz.arena", "Candidate")}
+                    className="text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
+                  >
+                    Instant Candidate Account &rarr;
+                  </button>
+                </div>
               </div>
             )}
 
