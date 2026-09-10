@@ -12,7 +12,7 @@ export function getSiteUrl(): string {
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL.replace(/\/+$/, "")}`;
   }
-  return "https://quiz-master.vercel.app";
+  return "https://quiz-join.vercel.app";
 }
 
 export const SITE_NAME = "Quiz Master Arena";
