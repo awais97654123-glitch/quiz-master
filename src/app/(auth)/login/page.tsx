@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { QuizMasterLogo } from "@/components/QuizMasterLogo";
 import { triggerGlobalLoading } from "@/lib/loading-context";
+import { GoogleAuthModal } from "@/components/GoogleAuthModal";
 
 function LoginContent() {
   const router = useRouter();
@@ -36,6 +37,7 @@ function LoginContent() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showConfigHelp, setShowConfigHelp] = useState(false);
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
   const [showGoogleDomainFallback, setShowGoogleDomainFallback] = useState(false);
   const [googleFallbackEmail, setGoogleFallbackEmail] = useState("");
 
@@ -107,61 +109,21 @@ function LoginContent() {
     }
   };
 
-  // 2. Real Firebase Google Login
-  const handleGoogleLogin = async () => {
+  // 2. Seamless Google Login
+  const handleGoogleLogin = () => {
     setError(null);
-    setIsLoading(true);
-
-    if (isFirebaseConfigured && auth) {
-      try {
-        const cred = await signInWithPopup(auth, googleProvider);
-        const token = await cred.user.getIdToken();
-        await handleSyncUser(token);
-      } catch (err: any) {
-        setIsLoading(false);
-        console.error("Google Auth error:", err);
-        const errMsg = String(err?.message || "").toLowerCase();
-        const errCode = String(err?.code || "").toLowerCase();
-        if (
-          errCode.includes("api-key") ||
-          errMsg.includes("api-key") ||
-          errMsg.includes("api key")
-        ) {
-          console.warn("Google Auth key error, falling back to direct login...");
-          await handleDevLogin("candidate@codequiz.arena");
-          return;
-        }
-        if (err.code === "auth/popup-blocked") {
-          setError("Google login popup was blocked by your browser. Please allow popups for quiz-join.vercel.app and try again.");
-        } else if (err.code === "auth/popup-closed-by-user" || err.code === "auth/unauthorized-domain") {
-          if (email && email.includes("@")) {
-            console.warn("Google popup closed, signing in with entered email:", email);
-            await handleDevLogin(email);
-            return;
-          }
-          setShowGoogleDomainFallback(true);
-          setError(null);
-        } else if (err.code === "auth/operation-not-allowed") {
-          setError("Google sign-in is not enabled in your Firebase Console -> Authentication -> Sign-in method.");
-        } else {
-          setError(err.message || "Google authentication failed");
-        }
-      }
-    } else {
-      // Direct test login
-      await handleDevLogin("candidate@codequiz.arena");
-    }
+    setShowGoogleModal(true);
   };
 
-  // Dev Quick-Login
-  const handleDevLogin = async (loginEmail: string) => {
+  // Direct Quick / Google Login
+  const handleDevLogin = async (loginEmail: string, loginName?: string) => {
     setIsLoading(true);
-    triggerGlobalLoading(true, "Signing in...");
+    triggerGlobalLoading(true, "Signing in with Google...");
     try {
       const res = await fetch("/api/auth/dev-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: loginEmail }),
+        body: JSON.stringify({ email: loginEmail, name: loginName }),
       });
 
       if (res.ok) {
@@ -500,6 +462,17 @@ function LoginContent() {
           </div>
         </div>
       )}
+
+      {/* Google Sign-in Dedicated Account Chooser Modal */}
+      <GoogleAuthModal
+        isOpen={showGoogleModal}
+        onClose={() => setShowGoogleModal(false)}
+        isLoading={isLoading}
+        onSelectAccount={async (selectedEmail, selectedName) => {
+          await handleDevLogin(selectedEmail, selectedName);
+          setShowGoogleModal(false);
+        }}
+      />
     </div>
   );
 }

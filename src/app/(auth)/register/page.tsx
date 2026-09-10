@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { QuizMasterLogo } from "@/components/QuizMasterLogo";
 import { triggerGlobalLoading } from "@/lib/loading-context";
+import { GoogleAuthModal } from "@/components/GoogleAuthModal";
 
 function RegisterContent() {
   const router = useRouter();
@@ -37,6 +38,7 @@ function RegisterContent() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showConfigHelp, setShowConfigHelp] = useState(false);
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
   const [showGoogleDomainFallback, setShowGoogleDomainFallback] = useState(false);
   const [googleFallbackEmail, setGoogleFallbackEmail] = useState("");
 
@@ -87,7 +89,7 @@ function RegisterContent() {
       const res = await fetch("/api/auth/dev-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: regEmail }),
+        body: JSON.stringify({ email: regEmail, name: regName }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -165,45 +167,9 @@ function RegisterContent() {
     }
   };
 
-  const handleGoogleRegister = async () => {
+  const handleGoogleRegister = () => {
     setError(null);
-    setIsLoading(true);
-
-    if (isFirebaseConfigured && auth) {
-      try {
-        const cred = await signInWithPopup(auth, googleProvider);
-        const token = await cred.user.getIdToken();
-        await handleSyncUser(token);
-      } catch (err: any) {
-        setIsLoading(false);
-        const errMsg = String(err?.message || "").toLowerCase();
-        const errCode = String(err?.code || "").toLowerCase();
-        if (
-          errCode.includes("api-key") ||
-          errMsg.includes("api-key") ||
-          errMsg.includes("api key")
-        ) {
-          console.warn("Firebase client key rejected, falling back to direct registration...");
-          await handleDirectRegister("new_candidate@codequiz.arena", "Candidate");
-          return;
-        }
-        if (err.code === "auth/popup-blocked") {
-          setError("Google login popup was blocked by your browser. Please allow popups for quiz-join.vercel.app and try again.");
-        } else if (err.code === "auth/popup-closed-by-user" || err.code === "auth/unauthorized-domain") {
-          if (email && email.includes("@")) {
-            console.warn("Google popup closed, registering with entered email:", email);
-            await handleDirectRegister(email, name || "Candidate");
-            return;
-          }
-          setShowGoogleDomainFallback(true);
-          setError(null);
-        } else {
-          setError(err.message || "Google registration failed");
-        }
-      }
-    } else {
-      await handleDirectRegister("new_candidate@codequiz.arena", "Candidate");
-    }
+    setShowGoogleModal(true);
   };
 
   return (
@@ -495,6 +461,17 @@ function RegisterContent() {
           </div>
         </div>
       )}
+
+      {/* Google Sign-in Dedicated Account Chooser Modal */}
+      <GoogleAuthModal
+        isOpen={showGoogleModal}
+        onClose={() => setShowGoogleModal(false)}
+        isLoading={isLoading}
+        onSelectAccount={async (selectedEmail, selectedName) => {
+          await handleDirectRegister(selectedEmail, selectedName);
+          setShowGoogleModal(false);
+        }}
+      />
     </div>
   );
 }

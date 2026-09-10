@@ -4,7 +4,7 @@ import { getOrCreateDbUser } from "@/lib/firebase-admin";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { email, phoneNumber } = body;
+    const { email, phoneNumber, name } = body;
 
     if (!email && !phoneNumber) {
       return NextResponse.json({ error: "Email or phone number is required" }, { status: 400 });
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       const authUser = {
         id: `dev_phone_${cleanDigits}`,
         phoneNumber,
-        name: `User ${phoneNumber.slice(-4)}`,
+        name: name || `User ${phoneNumber.slice(-4)}`,
         authProviderId: `phone:${phoneNumber}`,
       };
 
@@ -37,8 +37,8 @@ export async function POST(req: NextRequest) {
     const authUser = {
       id: `dev_${email.replace(/[^a-zA-Z0-9]/g, "_")}`,
       email,
-      name: email.split("@")[0],
-      authProviderId: `dev:${email}`,
+      name: name || email.split("@")[0],
+      authProviderId: `google:${email}`,
     };
 
     const dbUser = await getOrCreateDbUser(authUser);
