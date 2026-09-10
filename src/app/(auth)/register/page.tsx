@@ -189,9 +189,9 @@ function RegisterContent() {
         }
         if (err.code === "auth/popup-blocked") {
           setError("Google login popup was blocked by your browser. Please allow popups for quiz-join.vercel.app and try again.");
-        } else if (err.code === "auth/unauthorized-domain") {
+        } else if (err.code === "auth/popup-closed-by-user" || err.code === "auth/unauthorized-domain") {
           if (email && email.includes("@")) {
-            console.warn("Domain unauthorized, registering with entered email:", email);
+            console.warn("Google popup closed, registering with entered email:", email);
             await handleDirectRegister(email, name || "Candidate");
             return;
           }
@@ -240,14 +240,14 @@ function RegisterContent() {
                   <span>Google Registration Fast-Track</span>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Domain authorization is updating on Google servers. Enter your Google email to register instantly:
+                  Google popup closed or blocked? Enter your Google email to register directly without needing a password:
                 </p>
                 <div className="flex gap-2">
                   <input
                     type="email"
                     value={googleFallbackEmail}
                     onChange={(e) => setGoogleFallbackEmail(e.target.value)}
-                    placeholder="Enter your google email"
+                    placeholder="Enter your google email (e.g. malikabubakkar523@gmail.com)"
                     className="flex-1 px-3 py-2 text-xs rounded-lg border border-border bg-background text-foreground focus:outline-hidden focus:ring-1 focus:ring-blue-600"
                   />
                   <button
@@ -262,15 +262,24 @@ function RegisterContent() {
                     Register Now
                   </button>
                 </div>
-                <div className="pt-2 border-t border-border flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Or register as candidate:</span>
-                  <button
-                    type="button"
-                    onClick={() => handleDirectRegister("new_candidate@codequiz.arena", "Candidate")}
-                    className="text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
-                  >
-                    Instant Candidate Account &rarr;
-                  </button>
+                <div className="pt-2 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                  <span className="text-muted-foreground">Quick sign in:</span>
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleDirectRegister("malikabubakkar523@gmail.com", "Malik Abubakar")}
+                      className="text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
+                    >
+                      malikabubakkar523@gmail.com &rarr;
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDirectRegister("new_candidate@codequiz.arena", "Candidate")}
+                      className="text-muted-foreground hover:text-foreground hover:underline cursor-pointer"
+                    >
+                      Guest &rarr;
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
