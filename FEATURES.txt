@@ -1,0 +1,158 @@
+================================================================================
+                    QUIZ MASTER ARENA — COMPLETE FEATURE LIST
+                    Website & Application Capabilities Document
+================================================================================
+
+1. CORE TECHNOLOGY STACK & ARCHITECTURE
+--------------------------------------------------------------------------------
+- Next.js 15 (App Router, Server Components & Route Handlers)
+- React 19 & TypeScript (100% strict type-safe code, 0 compilation errors)
+- Tailwind CSS with customized White & Royal Blue visual design system
+- Prisma ORM (SQLite for local dev + PostgreSQL / Supabase ready for production)
+- Real-Time WebSockets via Socket.IO for zero-database lobby & match updates
+- Authentication: Firebase Auth (Email/Password + Phone OTP) & Supabase Sync
+- Transactional Emails: Official Resend API integration
+- AI Engine: Google Gemini 1.5 Flash API for automated curriculum generation
+- Vercel Deployment Ready: Configured vercel.json & optimized Next.js build
+
+
+2. UI/UX, BRANDING & DESIGN SYSTEM
+--------------------------------------------------------------------------------
+- Minimalist Royal Blue & White Palette (#1D4ED8, #2563EB, #06B6D4)
+- Seamless Dark Mode & Light Mode switch with persistent theme state
+- Custom Brand Assets: QuizMaster Logo and Custom Trophy Icon
+- Fast Splash Loader: Clean, elegant loading screen with glowing brand badge
+- Audio Feedback System: Native Web Audio API synthesis (audio pips & chimes)
+  without external audio files (zero latency, works seamlessly on mobile)
+- Dynamic 3-2-1-GO Esports Countdown: Dramatic pre-quiz animated overlay
+  with expanding pulse rings, status indicators, and sound effects
+- Responsive Layout: Fully optimized across Mobile, Tablet, and Desktop screens
+
+
+3. SOLO PRACTICE QUIZ MODE (/quiz/single)
+--------------------------------------------------------------------------------
+- Multi-Course Support: Comprehensive questions for HTML5, CSS3, and JavaScript
+- Multi-Topic Selection: Choose one or multiple topics with search and select-all
+- Strict Topic Isolation: Questions ONLY come from topics selected by the user;
+  no unrelated questions are ever backfilled from other topics
+- 150+ Deep Question Bank: Diverse Easy, Medium, and Hard curated questions
+- Multi-Tier Difficulty Balancing: Automatic distribution (~30% Easy, ~40% Medium, ~30% Hard)
+- Anti-Repetition Engine: Detects questions recently answered by the student
+  and prioritizes fresh, unseen questions
+- Direct Option Evaluation:
+  * Selecting an option instantly checks correctness
+  * Correct option turns Emerald Green (#10B981) with check icon
+  * Incorrect option turns Crimson Red (#EF4444) with cross icon, and
+    reveals the correct answer in green
+- Instant Educational Explanation: Real-time card explaining why an answer is
+  correct or incorrect
+- Randomized Option Distribution (A, B, C, D):
+  * Options are deterministically shuffled per attempt
+  * Correct answer is evenly distributed across A, B, C, and D (~25% each)
+  * Option A is never statically fixed as the correct answer
+- Smooth Auto-Advance:
+  * Advances to next question after 1.2s on correct answers
+  * Advances after 2.2s on incorrect answers (giving time to read explanations)
+  * Student can click "Next Question" anytime to advance instantly
+- Spaced Repetition Reinforcement: Questions answered incorrectly are
+  automatically re-queued 2-3 questions ahead until the student masters them
+- Server-Side Countdown Timer with automatic timeout submission
+
+
+4. MULTIPLAYER TOURNAMENT ARENA (/room/[roomCode] & /live/[quizId])
+--------------------------------------------------------------------------------
+- 6-Digit Room PIN & QR Code generation for instant student access
+- Live Waiting Room Lobby: Shows joined participants in real time with avatars
+- High-Concurrency Scalability (100–1000 Students):
+  * Instant room start broadcast via Socket.IO (zero database strain)
+  * Lightweight indexed quick status endpoint (?quick=1)
+  * Jittered fallback polling (5–8s randomized) preventing server crash spikes
+- Anti-Screen Peeking Randomization:
+  * Each student in the same room receives a different question sequence
+  * Each student receives different option positions (A, B, C, D)
+  * Students sitting side-by-side cannot copy answers from neighboring screens
+- Real-Time Anti-Cheat Monitor:
+  * Tracks browser tab switches (visibilitychange) and window defocus (blur)
+  * Displays warning alert to the student: "Tab switch detected!"
+  * Emits live violation counter to the room socket
+- Room Creator Host Controls (Anti-Cheat Disqualification):
+  * Host live dashboard displays real-time cheat violations (e.g. "⚠️ 2 Tab Switches")
+  * Host has an instant "Close Tab / Kick" button next to cheating students
+  * Clicking immediately disqualifies the student and broadcasts tab termination
+  * Cheating student's screen locks into a red termination screen:
+    "SESSION TERMINATED: Disqualified by Room Host for Academic Dishonesty"
+- Live Tournament Dashboard & Leaderboard (/live/[quizId]/dashboard):
+  * Deterministic real-time ranking: Score -> Accuracy -> Time Taken
+  * Visual podium for 1st, 2nd, and 3rd place with celebration confetti
+
+
+5. PERFORMANCE DASHBOARD & LIVE ANALYTICS (/dashboard)
+--------------------------------------------------------------------------------
+- Dedicated student dashboard replacing the old generic leaderboard
+- 4 Real-Time KPI Cards:
+  1. Average Score (%) with status indicator
+  2. Quizzes Taken (total completed sessions)
+  3. Highest Score (%) personal peak record
+  4. Accuracy Rate (%) with correct/total breakdown
+- Interactive SVG Score Analytics Chart (ScoreAnalyticsChart.tsx):
+  * Smooth score trajectory polyline with royal blue to cyan gradient fill
+  * Hover data inspector tooltips showing quiz title, timestamp, score, and duration
+  * Performance trend badge (e.g. "+15% Progression")
+- Detailed Examination History Table ("Kab konsa quiz kiya aur konsa score aaya"):
+  * Quiz Title and Subject Course
+  * Exact Date & Timestamp
+  * Raw Score (e.g. 8/10)
+  * Color-coded Percentage Badge (Emerald for 85%+, Blue for 60%+, Amber for <60%)
+  * Time Taken (minutes and seconds)
+  * Direct "Review" link to review previous questions and solutions
+
+
+6. AUTHENTICATION & PROFILE SYSTEM
+--------------------------------------------------------------------------------
+- Return-to-Current-Page Redirects:
+  * Login and registration preserve destination (?redirect=...)
+  * Users return directly to their active page instead of being forced to "/"
+- 100% Authentic Profile Data:
+  * Zero fake/mock placeholders (removed "Ahsan Khan", "Govt. College Lahore", 850 score)
+  * Shows real name, verified email, avatar, school/college, and genuine scores
+- Profile Setup & Customization (/profile/setup & /profile/settings):
+  * Bottts avatar generation and custom avatar URL support
+  * Institution / School affiliation updates
+  * Personal bio and specialization details
+- Firebase Authentication with sync to Prisma database
+- Developer Quick Login (/api/auth/dev-login) for instant testing
+
+
+7. TRANSACTIONAL EMAIL SYSTEM (RESEND API)
+--------------------------------------------------------------------------------
+- Official Resend SDK integrated in src/lib/email.ts
+- 3 Dedicated Transactional Email Templates:
+  1. Welcome Onboarding Email: Dispatched on new user registration
+  2. Official Score Report Card: Sent to student inbox upon quiz completion
+     with score, percentage, grade color, and review link
+  3. Tournament Room Invitation: Sent to invited students with 6-digit PIN
+     and one-click direct join link
+- Unified Email Dispatch API Route (/api/email)
+- Graceful Development Fallback: Simulates dispatch in dev mode if API key is unset
+
+
+8. QUESTION BANK & AI GENERATION
+--------------------------------------------------------------------------------
+- 150+ Verified Curated Questions across HTML, CSS, and JavaScript
+- Question Bank Seeding scripts (scripts/seed-rich-questions.ts & part2)
+- Google Gemini AI integration (/src/lib/gemini.ts) for generating new
+  exam-standard multiple-choice questions on demand
+- Verified fallback question curriculum for offline/fallback operation
+
+
+9. DEPLOYMENT & REPOSITORY STATUS
+--------------------------------------------------------------------------------
+- GitHub Repository: https://github.com/awais97654123-glitch/quiz-master.git
+- Production Branch: main
+- Vercel Deployment Configuration: vercel.json with Next.js framework detection
+- Production Build: Verified via next build (0 errors, 29/29 routes compiled)
+- Protected Secrets: Clean .gitignore preventing leak of .env, local DBs, and keys
+
+================================================================================
+                        END OF FEATURES DOCUMENTATION
+================================================================================
