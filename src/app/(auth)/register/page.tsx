@@ -80,6 +80,41 @@ function RegisterContent() {
     }
   };
 
+  const handleDirectRegister = async (regEmail: string, regName: string) => {
+    try {
+      const res = await fetch("/api/auth/dev-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: regEmail }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem("codequiz_token", data.token);
+        localStorage.setItem("codequiz_user", JSON.stringify(data.user));
+        window.dispatchEvent(new Event("auth_state_changed"));
+
+        if (regName.trim()) {
+          fetch("/api/profile", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${data.token}`,
+            },
+            body: JSON.stringify({ name: regName.trim() }),
+          }).catch(() => {});
+        }
+
+        router.push("/profile/setup");
+      } else {
+        setError("Direct registration failed");
+      }
+    } catch (err: any) {
+      setError(err.message || "Registration error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -95,41 +130,6 @@ function RegisterContent() {
     }
 
     setIsLoading(true);
-
-    const handleDirectRegister = async (regEmail: string, regName: string) => {
-      try {
-        const res = await fetch("/api/auth/dev-login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: regEmail }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          localStorage.setItem("codequiz_token", data.token);
-          localStorage.setItem("codequiz_user", JSON.stringify(data.user));
-          window.dispatchEvent(new Event("auth_state_changed"));
-
-          if (regName.trim()) {
-            fetch("/api/profile", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${data.token}`,
-              },
-              body: JSON.stringify({ name: regName.trim() }),
-            }).catch(() => {});
-          }
-
-          router.push("/profile/setup");
-        } else {
-          setError("Direct registration failed");
-        }
-      } catch (err: any) {
-        setError(err.message || "Registration error");
-      } finally {
-        setIsLoading(false);
-      }
-    };
 
     if (isFirebaseConfigured && auth) {
       try {
