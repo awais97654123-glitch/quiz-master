@@ -1,8 +1,11 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAnalytics, isSupported } from "firebase/analytics";
 import {
   getAuth,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -10,15 +13,15 @@ import {
   User as FirebaseUser,
 } from "firebase/auth";
 
-// Official QuizMaster Firebase Project Credentials
+// Official QuizMaster Firebase Project Credentials (quiz-master-11)
 const DEFAULT_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDmMBjj9GGxbxzYj93Bmd4tOsnDfI1X944",
-  authDomain: "quiz-master-b672d.firebaseapp.com",
-  projectId: "quiz-master-b672d",
-  storageBucket: "quiz-master-b672d.firebasestorage.app",
-  messagingSenderId: "370784960516",
-  appId: "1:370784960516:web:bc94f5af9d738a88be7551",
-  measurementId: "G-GGTFYW1M9L",
+  apiKey: "AIzaSyA6oUaHZVADEh9nlBPxpp3V3Noq-K7yk6E",
+  authDomain: "quiz-master-11.firebaseapp.com",
+  projectId: "quiz-master-11",
+  storageBucket: "quiz-master-11.firebasestorage.app",
+  messagingSenderId: "884729814039",
+  appId: "1:884729814039:web:97ee6ed01acae7bbe5d052",
+  measurementId: "G-EZHXJNXDM0",
 };
 
 function sanitizeConfigValue(raw: string | undefined, fallback: string): string {
@@ -69,14 +72,20 @@ const firebaseConfig = {
 
 export const isFirebaseConfigured = Boolean(firebaseConfig.apiKey && firebaseConfig.apiKey.length > 5);
 
-let app: any;
-let auth: any;
+// Initialize Firebase App
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const auth = getAuth(app);
 
-try {
-  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  auth = getAuth(app);
-} catch (e) {
-  console.warn("Firebase initialization notice, running in fallback mode:", e);
+// Safe Analytics Initialization for SSR/Next.js
+let analytics: any = null;
+if (typeof window !== "undefined") {
+  isSupported()
+    .then((supported) => {
+      if (supported) {
+        analytics = getAnalytics(app);
+      }
+    })
+    .catch(() => {});
 }
 
 // Configure Google OAuth provider with explicit account selection
@@ -89,7 +98,9 @@ googleProvider.addScope("profile");
 
 export const signOutUser = async () => {
   try {
-    await firebaseSignOut(auth);
+    if (auth) {
+      await firebaseSignOut(auth);
+    }
   } catch (err) {
     // ignore
   }
@@ -98,8 +109,11 @@ export const signOutUser = async () => {
 export {
   app,
   auth,
+  analytics,
   googleProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   firebaseSignOut,

@@ -22,31 +22,31 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_FIREBASE_API_KEY: cleanEnv(
       process.env.NEXT_PUBLIC_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY,
-      "AIzaSyDmMBjj9GGxbxzYj93Bmd4tOsnDfI1X944"
+      "AIzaSyA6oUaHZVADEh9nlBPxpp3V3Noq-K7yk6E"
     ),
     NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: cleanEnv(
       process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || process.env.FIREBASE_AUTH_DOMAIN,
-      "quiz-master-b672d.firebaseapp.com"
+      "quiz-master-11.firebaseapp.com"
     ),
     NEXT_PUBLIC_FIREBASE_PROJECT_ID: cleanEnv(
       process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID,
-      "quiz-master-b672d"
+      "quiz-master-11"
     ),
     NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: cleanEnv(
       process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || process.env.FIREBASE_STORAGE_BUCKET,
-      "quiz-master-b672d.firebasestorage.app"
+      "quiz-master-11.firebasestorage.app"
     ),
     NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: cleanEnv(
       process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || process.env.FIREBASE_MESSAGING_SENDER_ID,
-      "370784960516"
+      "884729814039"
     ),
     NEXT_PUBLIC_FIREBASE_APP_ID: cleanEnv(
       process.env.NEXT_PUBLIC_FIREBASE_APP_ID || process.env.FIREBASE_APP_ID,
-      "1:370784960516:web:bc94f5af9d738a88be7551"
+      "1:884729814039:web:97ee6ed01acae7bbe5d052"
     ),
     NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: cleanEnv(
       process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || process.env.FIREBASE_MEASUREMENT_ID,
-      "G-GGTFYW1M9L"
+      "G-EZHXJNXDM0"
     ),
     NEXT_PUBLIC_APP_URL: cleanEnv(
       process.env.NEXT_PUBLIC_APP_URL,
@@ -60,6 +60,14 @@ const nextConfig: NextConfig = {
       process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID,
       ""
     ),
+  },
+  async rewrites() {
+    return [
+      {
+        source: "/__/auth/:path*",
+        destination: "https://quiz-master-11.firebaseapp.com/__/auth/:path*",
+      },
+    ];
   },
 };
 

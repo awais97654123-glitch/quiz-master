@@ -21,35 +21,15 @@ export async function verifyAuthToken(authHeader?: string | null): Promise<Authe
   const token = authHeader.replace("Bearer ", "").trim();
   if (!token) return null;
 
-  // 1. Development/Testing token for Email
-  if (token.startsWith("dev-token:")) {
-    const email = token.replace("dev-token:", "").trim();
-    return {
-      id: `dev_${email.replace(/[^a-zA-Z0-9]/g, "_")}`,
-      email,
-      name: email.split("@")[0],
-      authProviderId: `dev:${email}`,
-    };
-  }
-
-  // 2. Development/Testing token for Phone Number
-  if (token.startsWith("dev-phone:")) {
-    const phoneNumber = token.replace("dev-phone:", "").trim();
-    const cleanId = phoneNumber.replace(/[^0-9]/g, "");
-    return {
-      id: `dev_phone_${cleanId}`,
-      phoneNumber,
-      email: `${cleanId}@phone.codequiz.arena`,
-      name: `User ${phoneNumber.slice(-4)}`,
-      authProviderId: `phone:${phoneNumber}`,
-    };
-  }
-
-  // 3. Firebase ID token / JWT
+  // Firebase ID token (JWT format: header.payload.signature)
   try {
     const parts = token.split(".");
     if (parts.length === 3) {
-      const payloadStr = Buffer.from(parts[1], "base64").toString("utf-8");
+      // Standardize base64url to base64 with proper padding
+      const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+      const padLength = (4 - (base64.length % 4)) % 4;
+      const paddedBase64 = base64 + "=".repeat(padLength);
+      const payloadStr = Buffer.from(paddedBase64, "base64").toString("utf-8");
       const payload = JSON.parse(payloadStr);
 
       const userId = payload.user_id || payload.sub || payload.uid;
@@ -75,6 +55,30 @@ export async function verifyAuthToken(authHeader?: string | null): Promise<Authe
     }
   } catch (err) {
     console.warn("Token parse warning:", err);
+  }
+
+  // Fallback for automated test scripts in development only
+  if (process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test") {
+    if (token.startsWith("dev-token:")) {
+      const email = token.replace("dev-token:", "").trim();
+      return {
+        id: `dev_${email.replace(/[^a-zA-Z0-9]/g, "_")}`,
+        email,
+        name: email.split("@")[0],
+        authProviderId: `dev:${email}`,
+      };
+    }
+    if (token.startsWith("dev-phone:")) {
+      const phoneNumber = token.replace("dev-phone:", "").trim();
+      const cleanId = phoneNumber.replace(/[^0-9]/g, "");
+      return {
+        id: `dev_phone_${cleanId}`,
+        phoneNumber,
+        email: `${cleanId}@phone.codequiz.arena`,
+        name: `User ${phoneNumber.slice(-4)}`,
+        authProviderId: `phone:${phoneNumber}`,
+      };
+    }
   }
 
   return null;

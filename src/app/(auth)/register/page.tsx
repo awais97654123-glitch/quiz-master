@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   googleProvider,
   auth,
-  isFirebaseConfigured,
 } from "@/lib/firebase";
 import {
   Mail,
@@ -17,13 +18,10 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
-  Sparkles,
-  ArrowRight,
-  Key,
+  ExternalLink,
 } from "lucide-react";
 import { QuizMasterLogo } from "@/components/QuizMasterLogo";
 import { triggerGlobalLoading } from "@/lib/loading-context";
-import { GoogleAuthModal } from "@/components/GoogleAuthModal";
 
 function RegisterContent() {
   const router = useRouter();
@@ -37,11 +35,8 @@ function RegisterContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [showConfigHelp, setShowConfigHelp] = useState(false);
-  const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [showGoogleDomainFallback, setShowGoogleDomainFallback] = useState(false);
-  const [googleFallbackEmail, setGoogleFallbackEmail] = useState("");
 
+  // Synchronize authenticated user with backend database
   const handleSyncUser = async (token: string, userName?: string) => {
     triggerGlobalLoading(true, "Setting up student profile...");
     try {
@@ -59,7 +54,7 @@ function RegisterContent() {
         localStorage.setItem("codequiz_user", JSON.stringify(data.user));
         window.dispatchEvent(new Event("auth_state_changed"));
 
-        // If a name was entered in registration, save to profile
+        // If custom name provided during registration, update user profile
         if (userName && userName.trim()) {
           fetch("/api/profile", {
             method: "POST",
@@ -84,41 +79,25 @@ function RegisterContent() {
     }
   };
 
-  const handleDirectRegister = async (regEmail: string, regName: string) => {
-    try {
-      const res = await fetch("/api/auth/dev-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: regEmail, name: regName }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        localStorage.setItem("codequiz_token", data.token);
-        localStorage.setItem("codequiz_user", JSON.stringify(data.user));
-        window.dispatchEvent(new Event("auth_state_changed"));
-
-        if (regName.trim()) {
-          fetch("/api/profile", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${data.token}`,
-            },
-            body: JSON.stringify({ name: regName.trim() }),
-          }).catch(() => {});
+  // Check for redirect result on page mount (e.g. mobile or redirect-based auth)
+  useEffect(() => {
+    if (!auth) return;
+    getRedirectResult(auth)
+      .then(async (cred) => {
+        if (cred?.user) {
+          setIsLoading(true);
+          triggerGlobalLoading(true, "Completing Google registration...");
+          const token = await cred.user.getIdToken();
+          await handleSyncUser(token, cred.user.displayName || undefined);
         }
+      })
+      .catch((err) => {
+        console.error("Redirect auth error:", err);
+        mapFirebaseError(err);
+      });
+  }, []);
 
-        router.push("/profile/setup");
-      } else {
-        setError("Direct registration failed");
-      }
-    } catch (err: any) {
-      setError(err.message || "Registration error");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // 1. Email + Password Registration
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -135,41 +114,90 @@ function RegisterContent() {
 
     setIsLoading(true);
 
-    if (isFirebaseConfigured && auth) {
-      try {
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
-        const token = await cred.user.getIdToken();
-        await handleSyncUser(token, name);
-      } catch (err: any) {
-        const errMsg = String(err?.message || "").toLowerCase();
-        const errCode = String(err?.code || "").toLowerCase();
-        if (
-          errCode.includes("api-key") ||
-          errMsg.includes("api-key") ||
-          errMsg.includes("api key") ||
-          errCode.includes("invalid-api-key")
-        ) {
-          console.warn("Firebase client key rejected, falling back to direct database registration...");
-          await handleDirectRegister(email, name);
-          return;
-        }
-        setIsLoading(false);
-        if (err.code === "auth/email-already-in-use") {
-          setError("This email address is already registered. Please sign in.");
-        } else if (err.code === "auth/weak-password") {
-          setError("Password is too weak. Please use letters, numbers, and symbols.");
-        } else {
-          setError(err.message || "Registration failed");
-        }
-      }
-    } else {
-      await handleDirectRegister(email, name);
+    if (!auth) {
+      setError("Authentication service is unavailable. Please check your connection.");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      const token = await cred.user.getIdToken();
+      await handleSyncUser(token, name);
+    } catch (err: any) {
+      setIsLoading(false);
+      mapFirebaseError(err);
     }
   };
 
-  const handleGoogleRegister = () => {
+  // 2. Real Google Registration via Firebase
+  const handleGoogleRegister = async () => {
     setError(null);
-    setShowGoogleModal(true);
+    setIsLoading(true);
+    triggerGlobalLoading(true, "Connecting with Google...");
+
+    if (!auth) {
+      setError("Firebase Authentication is not initialized.");
+      setIsLoading(false);
+      triggerGlobalLoading(false);
+      return;
+    }
+
+    try {
+      const cred = await signInWithPopup(auth, googleProvider);
+      const token = await cred.user.getIdToken();
+      await handleSyncUser(token, cred.user.displayName || undefined);
+    } catch (err: any) {
+      console.error("Google registration error:", err);
+      setIsLoading(false);
+      triggerGlobalLoading(false);
+
+      if (err.code === "auth/popup-blocked") {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch (redirectErr: any) {
+          mapFirebaseError(redirectErr);
+          return;
+        }
+      }
+
+      mapFirebaseError(err);
+    }
+  };
+
+  const mapFirebaseError = (err: any) => {
+    switch (err.code) {
+      case "auth/email-already-in-use":
+        setError("This email address is already registered. Please sign in instead.");
+        break;
+      case "auth/invalid-email":
+        setError("Invalid email address format.");
+        break;
+      case "auth/weak-password":
+        setError("Password is too weak. Please use at least 6 characters with letters and numbers.");
+        break;
+      case "auth/popup-closed-by-user":
+        setError("Sign-up cancelled. The Google window was closed.");
+        break;
+      case "auth/unauthorized-domain": {
+        const domain = typeof window !== "undefined" ? window.location.hostname : "your domain";
+        setError(
+          `Domain "${domain}" is not authorized in Firebase. Please add "${domain}" to Firebase Console -> Authentication -> Settings -> Authorized domains.`
+        );
+        break;
+      }
+      case "auth/operation-not-allowed":
+        setError(
+          "Sign-in method is disabled in Firebase Console. Please enable Email/Password and Google in Firebase Console -> Authentication -> Sign-in method."
+        );
+        break;
+      case "auth/network-request-failed":
+        setError("Network error. Please check your internet connection.");
+        break;
+      default:
+        setError(err.message || "Registration failed. Please try again.");
+    }
   };
 
   return (
@@ -195,57 +223,20 @@ function RegisterContent() {
             {error && (
               <div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-start gap-3">
                 <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                <span className="flex-1">{error}</span>
-              </div>
-            )}
-
-            {showGoogleDomainFallback && (
-              <div className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-foreground text-sm space-y-3 animate-in fade-in duration-200">
-                <div className="flex items-center gap-2 font-semibold text-amber-600 dark:text-amber-400">
-                  <Sparkles className="w-4 h-4 shrink-0" />
-                  <span>Google Registration Fast-Track</span>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Google popup closed or blocked? Enter your Google email to register directly without needing a password:
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="email"
-                    value={googleFallbackEmail}
-                    onChange={(e) => setGoogleFallbackEmail(e.target.value)}
-                    placeholder="Enter your google email (e.g. malikabubakkar523@gmail.com)"
-                    className="flex-1 px-3 py-2 text-xs rounded-lg border border-border bg-background text-foreground focus:outline-hidden focus:ring-1 focus:ring-blue-600"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (googleFallbackEmail.trim()) {
-                        handleDirectRegister(googleFallbackEmail.trim(), name || "New Candidate");
-                      }
-                    }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer"
-                  >
-                    Register Now
-                  </button>
-                </div>
-                <div className="pt-2 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                  <span className="text-muted-foreground">Quick sign in:</span>
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleDirectRegister("malikabubakkar523@gmail.com", "Malik Abubakar")}
-                      className="text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
-                    >
-                      malikabubakkar523@gmail.com &rarr;
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDirectRegister("new_candidate@codequiz.arena", "Candidate")}
-                      className="text-muted-foreground hover:text-foreground hover:underline cursor-pointer"
-                    >
-                      Guest &rarr;
-                    </button>
-                  </div>
+                <div className="flex-1 space-y-1">
+                  <span>{error}</span>
+                  {error.includes("Authorized domains") && (
+                    <div className="pt-2 text-xs">
+                      <a
+                        href="https://console.firebase.google.com/"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 font-semibold underline hover:opacity-80"
+                      >
+                        Open Firebase Console <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -329,7 +320,7 @@ function RegisterContent() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full mt-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md shadow-blue-600/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md shadow-blue-600/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer mt-2"
               >
                 <span>{isLoading ? "Creating account..." : "Sign Up"}</span>
               </button>
@@ -350,7 +341,7 @@ function RegisterContent() {
               type="button"
               onClick={handleGoogleRegister}
               disabled={isLoading}
-              className="w-full py-3 px-4 rounded-xl border border-border hover:border-slate-400 dark:hover:border-slate-600 bg-background hover:bg-muted/60 text-foreground font-semibold text-sm transition-all flex items-center justify-center gap-3 shadow-2xs cursor-pointer"
+              className="w-full py-3.5 px-4 rounded-xl border border-border hover:border-slate-400 dark:hover:border-slate-600 bg-background hover:bg-muted/60 text-foreground font-semibold text-sm transition-all flex items-center justify-center gap-3 shadow-2xs cursor-pointer disabled:opacity-50"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
                 <path
@@ -427,51 +418,11 @@ function RegisterContent() {
             </p>
           </div>
 
-          <div className="relative z-10 pt-4 border-t border-slate-800/80 text-center">
-            <Link
-              href="/login"
-              className="text-xs text-blue-400 hover:text-blue-300 font-semibold inline-flex items-center gap-1"
-            >
-              <span>Already have an account? Sign in</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+          <div className="relative z-10 pt-4 border-t border-slate-800/80 text-center text-xs text-slate-500">
+            Official QuizMaster Authentication
           </div>
         </div>
       </div>
-
-      {showConfigHelp && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center gap-3 text-blue-600">
-              <Key className="w-6 h-6" />
-              <h3 className="text-lg font-bold text-foreground">Firebase Configuration</h3>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              To connect your real Google Account via Firebase OAuth popup, please add your Firebase credentials to your <code className="px-1.5 py-0.5 rounded bg-muted font-mono text-foreground">.env</code> file.
-            </p>
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowConfigHelp(false)}
-                className="px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Google Sign-in Dedicated Account Chooser Modal */}
-      <GoogleAuthModal
-        isOpen={showGoogleModal}
-        onClose={() => setShowGoogleModal(false)}
-        isLoading={isLoading}
-        onSelectAccount={async (selectedEmail, selectedName) => {
-          await handleDirectRegister(selectedEmail, selectedName);
-          setShowGoogleModal(false);
-        }}
-      />
     </div>
   );
 }

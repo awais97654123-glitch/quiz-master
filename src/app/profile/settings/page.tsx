@@ -3,12 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  auth,
-  isFirebaseConfigured,
-  googleProvider,
-  signInWithPopup,
-} from "@/lib/firebase";
+
 import { DashboardShell } from "@/components/DashboardShell";
 import {
   ShieldCheck,

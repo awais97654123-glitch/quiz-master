@@ -45,18 +45,21 @@ async function runE2ESuite() {
       }
     });
 
-    // 2. Dev Login / Demo User Authentication
-    await assertStep("2. Authenticate Demo Account (Alex Rivera)", async () => {
-      const res = await fetch(`${BASE_URL}/api/auth/dev-login`, {
+    // 2. Dev Login / Test User Authentication
+    await assertStep("2. Authenticate Test Account (Alex Rivera)", async () => {
+      const token = "dev-token:demo@codequiz.arena";
+      const res = await fetch(`${BASE_URL}/api/auth/sync`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "demo@codequiz.arena" }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      if (!data.token || !data.user?.id) throw new Error("Invalid login response");
+      if (!data.user?.id) throw new Error("Invalid sync response");
       userId = data.user.id;
-      bearerToken = `Bearer ${data.token}`;
+      bearerToken = `Bearer ${token}`;
     });
 
     // 3. User Profile Verification
@@ -299,17 +302,20 @@ async function runE2ESuite() {
       }
     });
 
-    // 15. Phone Number OTP Authentication (Dev Login)
-    await assertStep("15. Phone Number OTP Authentication (+923001234567)", async () => {
+    // 15. Phone Number OTP Authentication
+    await assertStep("15. Phone Number Authentication (+923001234567)", async () => {
       const testPhone = "+923001234567";
-      const res = await fetch(`${BASE_URL}/api/auth/dev-login`, {
+      const token = `dev-phone:${testPhone}`;
+      const res = await fetch(`${BASE_URL}/api/auth/sync`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: testPhone }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      if (!data.token || data.user?.phoneNumber !== testPhone) {
+      if (!data.user?.phoneNumber || data.user.phoneNumber !== testPhone) {
         throw new Error(`Phone login failed. Expected phone ${testPhone}, got ${data.user?.phoneNumber}`);
       }
     });

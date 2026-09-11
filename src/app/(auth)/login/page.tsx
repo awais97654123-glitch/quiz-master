@@ -1,14 +1,15 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   signInWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   googleProvider,
   auth,
-  isFirebaseConfigured,
 } from "@/lib/firebase";
 import {
   Mail,
@@ -16,15 +17,10 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
-  Sparkles,
-  ArrowRight,
-  HelpCircle,
-  Key,
-  ShieldCheck,
+  ExternalLink,
 } from "lucide-react";
 import { QuizMasterLogo } from "@/components/QuizMasterLogo";
 import { triggerGlobalLoading } from "@/lib/loading-context";
-import { GoogleAuthModal } from "@/components/GoogleAuthModal";
 
 function LoginContent() {
   const router = useRouter();
@@ -36,10 +32,6 @@ function LoginContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [showConfigHelp, setShowConfigHelp] = useState(false);
-  const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [showGoogleDomainFallback, setShowGoogleDomainFallback] = useState(false);
-  const [googleFallbackEmail, setGoogleFallbackEmail] = useState("");
 
   // Synchronize authenticated user with backend database
   const handleSyncUser = async (token: string) => {
@@ -76,76 +68,79 @@ function LoginContent() {
     }
   };
 
+  // Check for redirect result on page mount (e.g. mobile or redirect-based auth)
+  useEffect(() => {
+    if (!auth) return;
+    getRedirectResult(auth)
+      .then(async (cred) => {
+        if (cred?.user) {
+          setIsLoading(true);
+          triggerGlobalLoading(true, "Completing Google sign-in...");
+          const token = await cred.user.getIdToken();
+          await handleSyncUser(token);
+        }
+      })
+      .catch((err) => {
+        console.error("Redirect auth error:", err);
+        mapFirebaseError(err);
+      });
+  }, []);
+
   // 1. Email + Password Login
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
 
-    if (isFirebaseConfigured && auth) {
-      try {
-        const cred = await signInWithEmailAndPassword(auth, email, password);
-        const token = await cred.user.getIdToken();
-        await handleSyncUser(token);
-      } catch (err: any) {
-        const errMsg = String(err?.message || "").toLowerCase();
-        const errCode = String(err?.code || "").toLowerCase();
-        if (
-          errCode.includes("api-key") ||
-          errMsg.includes("api-key") ||
-          errMsg.includes("api key") ||
-          errCode.includes("invalid-api-key")
-        ) {
-          console.warn("Firebase client key rejected, falling back to direct database login:", err.message);
-          await handleDevLogin(email);
-          return;
-        }
-        setIsLoading(false);
-        mapFirebaseError(err);
-      }
-    } else {
-      // Direct secure database login
-      await handleDevLogin(email);
+    if (!auth) {
+      setError("Authentication service is unavailable. Please check your connection.");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const token = await cred.user.getIdToken();
+      await handleSyncUser(token);
+    } catch (err: any) {
+      setIsLoading(false);
+      mapFirebaseError(err);
     }
   };
 
-  // 2. Seamless Google Login
-  const handleGoogleLogin = () => {
+  // 2. Real Google Sign-In via Firebase
+  const handleGoogleLogin = async () => {
     setError(null);
-    setShowGoogleModal(true);
-  };
-
-  // Direct Quick / Google Login
-  const handleDevLogin = async (loginEmail: string, loginName?: string) => {
     setIsLoading(true);
-    triggerGlobalLoading(true, "Signing in with Google...");
-    try {
-      const res = await fetch("/api/auth/dev-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: loginEmail, name: loginName }),
-      });
+    triggerGlobalLoading(true, "Connecting with Google...");
 
-      if (res.ok) {
-        const data = await res.json();
-        localStorage.setItem("codequiz_token", data.token);
-        localStorage.setItem("codequiz_user", JSON.stringify(data.user));
-        window.dispatchEvent(new Event("auth_state_changed"));
-
-        if (!data.user.profileCompleted) {
-          router.push(`/profile/setup?redirect=${encodeURIComponent(redirectTarget)}`);
-        } else {
-          router.push(redirectTarget);
-        }
-      } else {
-        const errData = await res.json();
-        setError(errData.error || "Development login failed");
-      }
-    } catch (err: any) {
-      setError(err.message || "Network error");
-    } finally {
+    if (!auth) {
+      setError("Firebase Authentication is not initialized.");
       setIsLoading(false);
       triggerGlobalLoading(false);
+      return;
+    }
+
+    try {
+      const cred = await signInWithPopup(auth, googleProvider);
+      const token = await cred.user.getIdToken();
+      await handleSyncUser(token);
+    } catch (err: any) {
+      console.error("Google sign-in error:", err);
+      setIsLoading(false);
+      triggerGlobalLoading(false);
+
+      if (err.code === "auth/popup-blocked") {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          return;
+        } catch (redirectErr: any) {
+          mapFirebaseError(redirectErr);
+          return;
+        }
+      }
+
+      mapFirebaseError(err);
     }
   };
 
@@ -162,6 +157,24 @@ function LoginContent() {
       case "auth/too-many-requests":
         setError("Too many failed attempts. Please try again in a few minutes.");
         break;
+      case "auth/popup-closed-by-user":
+        setError("Sign-in cancelled. The Google sign-in window was closed.");
+        break;
+      case "auth/unauthorized-domain": {
+        const domain = typeof window !== "undefined" ? window.location.hostname : "your domain";
+        setError(
+          `Domain "${domain}" is not authorized in Firebase. Please add "${domain}" to Firebase Console -> Authentication -> Settings -> Authorized domains.`
+        );
+        break;
+      }
+      case "auth/operation-not-allowed":
+        setError(
+          "Sign-in method is disabled in Firebase Console. Please enable Email/Password and Google in Firebase Console -> Authentication -> Sign-in method."
+        );
+        break;
+      case "auth/network-request-failed":
+        setError("Network error. Please check your internet connection.");
+        break;
       default:
         setError(err.message || "Authentication error occurred.");
     }
@@ -169,7 +182,7 @@ function LoginContent() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-10 bg-slate-100 dark:bg-slate-950">
-      {/* Split Auth Container (matching Screen 2) */}
+      {/* Split Auth Container */}
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 rounded-3xl overflow-hidden shadow-2xl border border-border bg-card">
         
         {/* Left Side: Form Container */}
@@ -192,57 +205,20 @@ function LoginContent() {
             {error && (
               <div className="mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm flex items-start gap-3">
                 <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-                <span className="flex-1">{error}</span>
-              </div>
-            )}
-
-            {showGoogleDomainFallback && (
-              <div className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-foreground text-sm space-y-3 animate-in fade-in duration-200">
-                <div className="flex items-center gap-2 font-semibold text-amber-600 dark:text-amber-400">
-                  <Sparkles className="w-4 h-4 shrink-0" />
-                  <span>Google Sign-In Fast-Track</span>
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Google popup closed or blocked? Enter your Google email below to sign in directly without needing a password:
-                </p>
-                <div className="flex gap-2">
-                  <input
-                    type="email"
-                    value={googleFallbackEmail}
-                    onChange={(e) => setGoogleFallbackEmail(e.target.value)}
-                    placeholder="Enter your google email (e.g. malikabubakkar523@gmail.com)"
-                    className="flex-1 px-3 py-2 text-xs rounded-lg border border-border bg-background text-foreground focus:outline-hidden focus:ring-1 focus:ring-blue-600"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (googleFallbackEmail.trim()) {
-                        handleDevLogin(googleFallbackEmail.trim());
-                      }
-                    }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shrink-0 cursor-pointer"
-                  >
-                    Sign In
-                  </button>
-                </div>
-                <div className="pt-2 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                  <span className="text-muted-foreground">Quick sign in:</span>
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleDevLogin("malikabubakkar523@gmail.com")}
-                      className="text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
-                    >
-                      malikabubakkar523@gmail.com &rarr;
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDevLogin("candidate@codequiz.arena")}
-                      className="text-muted-foreground hover:text-foreground hover:underline cursor-pointer"
-                    >
-                      Guest &rarr;
-                    </button>
-                  </div>
+                <div className="flex-1 space-y-1">
+                  <span>{error}</span>
+                  {error.includes("Authorized domains") && (
+                    <div className="pt-2 text-xs">
+                      <a
+                        href="https://console.firebase.google.com/"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 font-semibold underline hover:opacity-80"
+                      >
+                        Open Firebase Console <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -317,7 +293,7 @@ function LoginContent() {
               type="button"
               onClick={handleGoogleLogin}
               disabled={isLoading}
-              className="w-full py-3.5 px-4 rounded-xl border border-border hover:border-slate-400 dark:hover:border-slate-600 bg-background hover:bg-muted/60 text-foreground font-semibold text-sm transition-all flex items-center justify-center gap-3 shadow-2xs cursor-pointer"
+              className="w-full py-3.5 px-4 rounded-xl border border-border hover:border-slate-400 dark:hover:border-slate-600 bg-background hover:bg-muted/60 text-foreground font-semibold text-sm transition-all flex items-center justify-center gap-3 shadow-2xs cursor-pointer disabled:opacity-50"
             >
               {/* Official Google G SVG */}
               <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -354,7 +330,7 @@ function LoginContent() {
           </div>
         </div>
 
-        {/* Right Side: Dark Blue Illustration Panel (matching Screen 2) */}
+        {/* Right Side: Dark Blue Illustration Panel */}
         <div className="hidden lg:flex lg:col-span-5 bg-[#0B132B] p-12 flex-col justify-between text-white relative overflow-hidden">
           {/* Subtle glow circle */}
           <div className="absolute -right-20 -top-20 w-72 h-72 rounded-full bg-blue-600/20 blur-3xl pointer-events-none" />
@@ -375,26 +351,19 @@ function LoginContent() {
               <span>Grow</span>
             </div>
 
-            {/* Developer Illustration SVG matching Screen 2 */}
+            {/* Developer Illustration SVG */}
             <div className="w-56 h-56 mx-auto relative flex items-center justify-center">
               <svg viewBox="0 0 200 200" className="w-full h-full drop-shadow-xl">
-                {/* Desk surface */}
                 <ellipse cx="100" cy="165" rx="85" ry="12" fill="#141E3C" />
-                {/* Laptop base */}
                 <rect x="55" y="140" width="90" height="8" rx="3" fill="#3B82F6" />
-                {/* Laptop screen */}
                 <rect x="65" y="85" width="70" height="55" rx="4" fill="#1E293B" stroke="#60A5FA" strokeWidth="2" />
-                {/* Code lines on screen */}
                 <line x1="73" y1="98" x2="95" y2="98" stroke="#38BDF8" strokeWidth="2.5" strokeLinecap="round" />
                 <line x1="73" y1="106" x2="115" y2="106" stroke="#4ADE80" strokeWidth="2.5" strokeLinecap="round" />
                 <line x1="73" y1="114" x2="105" y2="114" stroke="#F472B6" strokeWidth="2.5" strokeLinecap="round" />
                 <line x1="73" y1="122" x2="88" y2="122" stroke="#FBBF24" strokeWidth="2.5" strokeLinecap="round" />
-                {/* Developer character */}
                 <circle cx="100" cy="50" r="16" fill="#F87171" />
                 <path d="M82 82 C82 66, 118 66, 118 82 L122 135 L78 135 Z" fill="#2563EB" />
-                {/* Hair */}
                 <path d="M84 48 C84 32, 116 32, 116 48 C110 40, 90 40, 84 48 Z" fill="#1E1B4B" />
-                {/* Glowing badge */}
                 <circle cx="145" cy="70" r="14" fill="#059669" />
                 <text x="145" y="74" textAnchor="middle" fill="white" fontSize="10" fontWeight="bold">JS</text>
                 <circle cx="55" cy="70" r="14" fill="#2563EB" />
@@ -407,72 +376,12 @@ function LoginContent() {
             </p>
           </div>
 
-          {/* Quick Demo Test Access */}
-          <div className="relative z-10 pt-4 border-t border-slate-800/80 text-center">
-            <button
-              type="button"
-              onClick={() => handleDevLogin("demo@codequiz.arena")}
-              className="text-xs text-blue-400 hover:text-blue-300 font-semibold inline-flex items-center gap-1 cursor-pointer"
-            >
-              <span>Instant Test Candidate Login (Alex Rivera)</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
+          {/* Footer note */}
+          <div className="relative z-10 pt-4 border-t border-slate-800/80 text-center text-xs text-slate-500">
+            Official QuizMaster Authentication
           </div>
         </div>
       </div>
-
-      {/* Firebase Setup Modal for Google Login if keys not in .env */}
-      {showConfigHelp && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center gap-3 text-blue-600">
-              <Key className="w-6 h-6" />
-              <h3 className="text-lg font-bold text-foreground">Firebase Configuration</h3>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              To connect your real Google Account via Firebase OAuth popup, please paste your Firebase Client keys in your <code className="px-1.5 py-0.5 rounded bg-muted font-mono text-foreground">.env</code> file:
-            </p>
-            <div className="bg-muted p-3.5 rounded-xl font-mono text-[11px] text-foreground space-y-1 overflow-x-auto">
-              <div>NEXT_PUBLIC_FIREBASE_API_KEY=&quot;...&quot;</div>
-              <div>NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=&quot;...&quot;</div>
-              <div>NEXT_PUBLIC_FIREBASE_PROJECT_ID=&quot;...&quot;</div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Or proceed immediately with our pre-configured candidate session:
-            </p>
-            <div className="flex items-center justify-between gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowConfigHelp(false)}
-                className="px-4 py-2 text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowConfigHelp(false);
-                  handleDevLogin("google_student@codequiz.arena");
-                }}
-                className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm cursor-pointer"
-              >
-                Continue Demo Google Session
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Google Sign-in Dedicated Account Chooser Modal */}
-      <GoogleAuthModal
-        isOpen={showGoogleModal}
-        onClose={() => setShowGoogleModal(false)}
-        isLoading={isLoading}
-        onSelectAccount={async (selectedEmail, selectedName) => {
-          await handleDevLogin(selectedEmail, selectedName);
-          setShowGoogleModal(false);
-        }}
-      />
     </div>
   );
 }

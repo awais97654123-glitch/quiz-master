@@ -65,30 +65,37 @@ const QUIZ_FAQS = [
   },
 ];
 
-export default async function AllQuizzesPage() {
-  const courses = await prisma.course.findMany({
-    include: {
-      _count: {
-        select: {
-          topics: true,
-          questions: true,
-        },
-      },
-      topics: {
-        take: 6,
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-        },
-      },
-    },
-    orderBy: {
-      name: "asc",
-    },
-  });
+export const dynamic = "force-dynamic";
 
-  const totalQuestions = courses.reduce((acc, c) => acc + c._count.questions, 0);
+export default async function AllQuizzesPage() {
+  let courses: any[] = [];
+  try {
+    courses = await prisma.course.findMany({
+      include: {
+        _count: {
+          select: {
+            topics: true,
+            questions: true,
+          },
+        },
+        topics: {
+          take: 6,
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+      },
+      orderBy: {
+        name: "asc",
+      },
+    });
+  } catch (err) {
+    console.warn("AllQuizzesPage DB fetch error:", err);
+  }
+
+  const totalQuestions = courses.reduce((acc: number, c: any) => acc + (c._count?.questions || 0), 0);
 
   const breadcrumbItems = [{ name: "Quizzes", url: "/quiz" }];
   const breadcrumbSchema = generateBreadcrumbSchema(breadcrumbItems);
@@ -128,7 +135,7 @@ export default async function AllQuizzesPage() {
 
         {/* Course Catalog Cards */}
         <section aria-label="Available Quiz Courses" className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {courses.map((course) => {
+          {courses.map((course: any) => {
             const isHtml = course.slug === "html";
             const isCss = course.slug === "css";
             const isJs = course.slug === "javascript";
@@ -179,7 +186,7 @@ export default async function AllQuizzesPage() {
                       Sample Topics:
                     </span>
                     <ul className="flex flex-wrap gap-1.5 list-none p-0">
-                      {course.topics.map((topic) => (
+                      {course.topics.map((topic: any) => (
                         <li key={topic.id}>
                           <Link
                             href={`/quiz/${course.slug}/${topic.slug}`}

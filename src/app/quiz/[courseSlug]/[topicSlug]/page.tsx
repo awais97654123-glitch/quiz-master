@@ -24,6 +24,8 @@ import {
   generateQuizSchema,
 } from "@/lib/schema-generator";
 
+export const dynamic = "force-dynamic";
+
 interface TopicPageProps {
   params: Promise<{
     courseSlug: string;

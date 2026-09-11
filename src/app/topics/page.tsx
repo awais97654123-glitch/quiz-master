@@ -24,18 +24,25 @@ export const metadata: Metadata = constructMetadata({
   ],
 });
 
+export const dynamic = "force-dynamic";
+
 export default async function TopicsIndexPage() {
-  const courses = await prisma.course.findMany({
-    include: {
-      topics: {
-        orderBy: { name: "asc" },
+  let courses: any[] = [];
+  try {
+    courses = await prisma.course.findMany({
+      include: {
+        topics: {
+          orderBy: { name: "asc" },
+        },
+        _count: {
+          select: { topics: true, questions: true },
+        },
       },
-      _count: {
-        select: { topics: true, questions: true },
-      },
-    },
-    orderBy: { name: "asc" },
-  });
+      orderBy: { name: "asc" },
+    });
+  } catch (err) {
+    console.warn("TopicsIndexPage DB fetch error:", err);
+  }
 
   const breadcrumbItems = [{ name: "Curriculum Topics", url: "/topics" }];
   const breadcrumbSchema = generateBreadcrumbSchema(breadcrumbItems);
@@ -64,7 +71,7 @@ export default async function TopicsIndexPage() {
 
         {/* Courses and Full Topics Lists */}
         <div className="space-y-12">
-          {courses.map((course) => {
+          {courses.map((course: any) => {
             const isHtml = course.slug === "html";
             const isCss = course.slug === "css";
 
@@ -101,7 +108,7 @@ export default async function TopicsIndexPage() {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {course.topics.map((topic) => (
+                  {course.topics.map((topic: any) => (
                     <Link
                       key={topic.id}
                       href={`/quiz/${course.slug}/${topic.slug}`}

@@ -52,18 +52,25 @@ const ONLINE_TEST_FAQS = [
   },
 ];
 
+export const dynamic = "force-dynamic";
+
 export default async function OnlineTestPage() {
-  const courses = await prisma.course.findMany({
-    include: {
-      _count: {
-        select: {
-          questions: true,
-          topics: true,
+  let courses: any[] = [];
+  try {
+    courses = await prisma.course.findMany({
+      include: {
+        _count: {
+          select: {
+            questions: true,
+            topics: true,
+          },
         },
       },
-    },
-    orderBy: { name: "asc" },
-  });
+      orderBy: { name: "asc" },
+    });
+  } catch (err) {
+    console.warn("OnlineTestPage DB fetch error:", err);
+  }
 
   const breadcrumbItems = [{ name: "Online Practice Tests", url: "/online-test" }];
   const breadcrumbSchema = generateBreadcrumbSchema(breadcrumbItems);
@@ -93,7 +100,7 @@ export default async function OnlineTestPage() {
 
         {/* Test Format Cards */}
         <section aria-label="Available Practice Tests" className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {courses.map((course) => (
+          {courses.map((course: any) => (
             <div
               key={course.id}
               className="p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#070c1b] shadow-sm flex flex-col justify-between"

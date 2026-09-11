@@ -50,26 +50,33 @@ const MCQ_FAQS = [
   },
 ];
 
+export const dynamic = "force-dynamic";
+
 export default async function McqDirectoryPage() {
-  const courses = await prisma.course.findMany({
-    include: {
-      topics: {
-        take: 8,
-        select: {
-          id: true,
-          name: true,
-          slug: true,
+  let courses: any[] = [];
+  try {
+    courses = await prisma.course.findMany({
+      include: {
+        topics: {
+          take: 8,
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+        _count: {
+          select: {
+            questions: true,
+            topics: true,
+          },
         },
       },
-      _count: {
-        select: {
-          questions: true,
-          topics: true,
-        },
-      },
-    },
-    orderBy: { name: "asc" },
-  });
+      orderBy: { name: "asc" },
+    });
+  } catch (err) {
+    console.warn("McqDirectoryPage DB fetch error:", err);
+  }
 
   const breadcrumbItems = [{ name: "MCQs Directory", url: "/mcq" }];
   const breadcrumbSchema = generateBreadcrumbSchema(breadcrumbItems);
@@ -100,7 +107,7 @@ export default async function McqDirectoryPage() {
 
         {/* Course MCQs Collections */}
         <section aria-label="MCQ Categories" className="space-y-8">
-          {courses.map((course) => (
+          {courses.map((course: any) => (
             <div
               key={course.id}
               className="p-6 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#070c1b] shadow-sm space-y-4"
@@ -125,7 +132,7 @@ export default async function McqDirectoryPage() {
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2">
-                {course.topics.map((topic) => (
+                {course.topics.map((topic: any) => (
                   <Link
                     key={topic.id}
                     href={`/quiz/${course.slug}/${topic.slug}`}
