@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuthToken, getOrCreateDbUser } from "@/lib/firebase-admin";
 import prisma from "@/lib/prisma";
 import { calculateQuizResults } from "@/lib/quiz-engine";
+import { recordUserQuestionAttempts, computeAttemptLearningMetrics } from "@/lib/learning-tracker";
 
 export async function POST(
   req: NextRequest,
@@ -111,8 +112,33 @@ export async function POST(
         timeTaken: updatedAttempt.timeTaken,
         status: finalStatus,
         topicBreakdown: evaluation.topicBreakdown,
+        evaluatedAnswers: evaluation.evaluatedAnswers,
+        courseId: attempt.quiz.courseId,
       };
     });
+
+    // Record user mistakes & learning history (immutable mistake tracking)
+    if (!result.alreadySubmitted && result.evaluatedAnswers) {
+      await recordUserQuestionAttempts({
+        userId: dbUser.id,
+        courseId: result.courseId,
+        answers: result.evaluatedAnswers.map((ea: any) => ({
+          questionId: ea.questionId,
+          selectedAnswer: ea.selectedAnswer,
+          isCorrect: ea.isCorrect,
+        })),
+      });
+
+      const learningMetrics = await computeAttemptLearningMetrics({
+        userId: dbUser.id,
+        evaluatedAnswers: result.evaluatedAnswers,
+      });
+
+      return NextResponse.json({
+        ...result,
+        learningMetrics,
+      });
+    }
 
     return NextResponse.json(result);
   } catch (error: any) {

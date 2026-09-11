@@ -1,7 +1,8 @@
 import prisma from "./prisma";
+import { verifyNativeJwt } from "./auth-native";
 
 export interface AuthenticatedUser {
-  id: string; // Firebase UID
+  id: string; // Firebase UID or Native User ID
   email?: string | null;
   phoneNumber?: string | null;
   name?: string;
@@ -11,7 +12,7 @@ export interface AuthenticatedUser {
 
 /**
  * Verifies incoming Bearer auth token:
- * Supports Firebase ID tokens, dev-tokens, dev-phone tokens, and structured JWT claims
+ * Supports Native website JWTs, Firebase ID tokens, dev-tokens, dev-phone tokens
  */
 export async function verifyAuthToken(authHeader?: string | null): Promise<AuthenticatedUser | null> {
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -21,7 +22,20 @@ export async function verifyAuthToken(authHeader?: string | null): Promise<Authe
   const token = authHeader.replace("Bearer ", "").trim();
   if (!token) return null;
 
-  // Firebase ID token (JWT format: header.payload.signature)
+  // 1. Check if token is a Native website JWT
+  const nativePayload = verifyNativeJwt(token);
+  if (nativePayload) {
+    return {
+      id: nativePayload.user_id || nativePayload.sub,
+      email: nativePayload.email,
+      phoneNumber: null,
+      name: nativePayload.name || nativePayload.email.split("@")[0],
+      avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${nativePayload.email}`,
+      authProviderId: `native:${nativePayload.email}`,
+    };
+  }
+
+  // 2. Firebase ID token (JWT format: header.payload.signature)
   try {
     const parts = token.split(".");
     if (parts.length === 3) {
@@ -93,6 +107,10 @@ export async function getOrCreateDbUser(authUser: AuthenticatedUser) {
     { authProviderId: authUser.authProviderId },
     { firebaseUid: authUser.id },
   ];
+
+  if (authUser.id && !authUser.id.startsWith("dev_")) {
+    orConditions.push({ id: authUser.id });
+  }
 
   if (authUser.phoneNumber) {
     orConditions.push({ phoneNumber: authUser.phoneNumber });

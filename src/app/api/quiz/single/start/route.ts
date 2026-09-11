@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAuthToken, getOrCreateDbUser } from "@/lib/firebase-admin";
 import prisma from "@/lib/prisma";
-import { shuffleArray } from "@/lib/utils";
-import {
-  calculateTopicDistribution,
-  prepareQuizQuestions,
-  balanceDifficultyQuestions,
-} from "@/lib/quiz-engine";
+import { getQuizQuestions } from "@/lib/quiz-selection-service";
 import { z } from "zod";
 
 const StartSingleQuizSchema = z.object({
@@ -35,50 +30,23 @@ export async function POST(req: NextRequest) {
 
     const { name, courseId, topicIds, questionCount, durationMinutes } = parsed.data;
 
-    // Fetch candidate questions from selected topics
-    const topicCandidates = await prisma.question.findMany({
-      where: {
-        topicId: { in: topicIds },
-      },
-      include: { topic: true },
+    // Use Unified Master Question Selection Service (Hard Topic Isolation & Mistakes Priority)
+    const selection = await getQuizQuestions({
+      userId: dbUser.id,
+      courseId,
+      topicIds,
+      count: questionCount,
     });
 
-    if (topicCandidates.length === 0) {
+    if (selection.totalSelected === 0) {
       return NextResponse.json(
-        { error: "No questions currently available for the selected topics. Please choose additional topics." },
+        { error: "No validated questions available for the selected topics. Please choose additional topics." },
         { status: 400 }
       );
     }
 
-    // Anti-repetition: Find questions recently answered by this user to avoid duplicate questions
-    const recentAnswers = await prisma.answer.findMany({
-      where: {
-        attempt: { userId: dbUser.id },
-      },
-      select: { questionId: true },
-      orderBy: { answeredAt: "desc" },
-      take: 60,
-    });
-    const recentSeenIds = new Set(recentAnswers.map((a) => a.questionId));
-
-    // Prioritize unseen questions so questions do not repeat endlessly
-    const unseen = topicCandidates.filter((q) => !recentSeenIds.has(q.id));
-    const seen = topicCandidates.filter((q) => recentSeenIds.has(q.id));
-    const prioritizedPool = [...shuffleArray(unseen), ...shuffleArray(seen)];
-
-    const targetCount = Math.min(questionCount, prioritizedPool.length);
-
-    // Select balanced, randomized mix of Easy (~30%), Medium (~40%), and Hard (~30%) questions strictly from selected topics
-    const balancedQuestions = balanceDifficultyQuestions(prioritizedPool, targetCount);
-
-    const formattedQuestions = balancedQuestions.map((q) => ({
-      ...q,
-      difficulty: q.difficulty as "EASY" | "MEDIUM" | "HARD",
-      options: JSON.parse(q.options),
-    }));
-
-    // Prepare questions with server-side randomization (options and question sequence)
-    const { clientQuestions, orderedQuestionIds } = prepareQuizQuestions(formattedQuestions);
+    const clientQuestions = selection.clientQuestions;
+    const orderedQuestionIds = selection.orderedQuestionIds;
 
     const startedAt = new Date();
     const expiresAt = new Date(startedAt.getTime() + durationMinutes * 60 * 1000);

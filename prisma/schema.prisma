@@ -8,17 +8,20 @@ generator client {
 }
 
 model User {
-  id               String            @id @default(cuid())
-  authProviderId   String            @unique
-  firebaseUid      String?           @unique
-  email            String?           @unique
-  phoneNumber      String?           @unique
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id               String                 @id @default(cuid())
+  authProviderId   String                 @unique
+  firebaseUid      String?                @unique
+  email            String?                @unique
+  phoneNumber      String?                @unique
+  passwordHash     String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
   profile          Profile?
-  quizzesCreated   Quiz[]            @relation("CreatedQuizzes")
+  quizzesCreated   Quiz[]                 @relation("CreatedQuizzes")
   attempts         Attempt[]
   participants     QuizParticipant[]
+  questionProgress UserQuestionProgress[]
+  questionReports  QuestionReport[]
 
   @@map("users")
 }
@@ -64,25 +67,38 @@ model Topic {
 }
 
 model Question {
-  id               String            @id @default(cuid())
+  id               String                 @id @default(cuid())
   courseId         String
-  course           Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course           Course                 @relation(fields: [courseId], references: [id], onDelete: Cascade)
   topicId          String
-  topic            Topic             @relation(fields: [topicId], references: [id], onDelete: Cascade)
-  difficulty       String            @default("MEDIUM") // EASY, MEDIUM, HARD
-  type             String            @default("mcq")
+  topic            Topic                  @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  subtopic         String?
+  difficulty       String                 @default("MEDIUM") // EASY, MEDIUM, HARD
+  type             String                 @default("mcq")
   question         String
   code             String?
-  options          String            // JSON array of 4 options
-  correctAnswer    String            // Exactly matches one option
+  options          String                 // JSON array of 4 options
+  correctAnswer    String                 // Exactly matches one option
   explanation      String
-  generationSource String            @default("system") // system or gemini
-  createdAt        DateTime          @default(now())
+  generationSource String                 @default("system") // system, gemini, openai, curriculum_engine
+  status           String                 @default("APPROVED") // APPROVED, FLAGGED, UNDER_REVIEW, REJECTED, AI_GENERATED
+  qualityScore     Float                  @default(85.0)
+  trustScore       Float                  @default(100.0)
+  conceptPlan      String?
+  reportCount      Int                    @default(0)
+  timesShown       Int                    @default(0)
+  timesCorrect     Int                    @default(0)
+  timesIncorrect   Int                    @default(0)
+  createdAt        DateTime               @default(now())
   quizQuestions    QuizQuestion[]
   attemptQuestions AttemptQuestion[]
   answers          Answer[]
+  reports          QuestionReport[]
+  userProgress     UserQuestionProgress[]
 
   @@index([courseId, topicId, difficulty])
+  @@index([courseId, topicId, status])
+  @@index([status, qualityScore])
   @@map("questions")
 }
 
@@ -195,3 +211,49 @@ model QuizParticipant {
   @@unique([quizId, userId])
   @@map("quiz_participants")
 }
+
+model UserQuestionProgress {
+  id                 String    @id @default(cuid())
+  userId             String
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  questionId         String
+  question           Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  topicId            String?
+  courseId           String?
+  attempts           Int       @default(0)
+  correctAttempts    Int       @default(0)
+  incorrectAttempts  Int       @default(0)
+  firstIncorrectAt   DateTime?
+  lastAttemptAt      DateTime  @default(now())
+  lastCorrectAt      DateTime?
+  consecutiveCorrect Int       @default(0)
+  mastered           Boolean   @default(false)
+  masteredAt         DateTime?
+  nextReviewAt       DateTime?
+  status             String    @default("NEW") // NEW, LEARNING, REVIEW, MASTERED
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([userId, questionId])
+  @@index([userId, topicId])
+  @@index([userId, status])
+  @@index([userId, nextReviewAt])
+  @@map("user_question_progress")
+}
+
+model QuestionReport {
+  id         String   @id @default(cuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reason     String   // NOT_RELATED_TO_TOPIC, WRONG_ANSWER, MULTIPLE_CORRECT, WRONG_EXPLANATION, UNCLEAR, DUPLICATE, TYPO, OTHER
+  details    String?
+  status     String   @default("PENDING") // PENDING, RESOLVED, DISMISSED
+  createdAt  DateTime @default(now())
+
+  @@index([questionId, status])
+  @@index([userId])
+  @@map("question_reports")
+}
+

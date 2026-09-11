@@ -16,13 +16,15 @@ import {
   Sparkles,
 } from "lucide-react";
 import { QuizMasterLogo } from "@/components/QuizMasterLogo";
+import { sanitizeRoomCode } from "@/lib/utils";
 
 export default function JoinQuizPage({
   params,
 }: {
   params: Promise<{ roomCode: string }>;
 }) {
-  const { roomCode } = use(params);
+  const { roomCode: rawRoomCode } = use(params);
+  const roomCode = sanitizeRoomCode(rawRoomCode);
   const router = useRouter();
 
   const [quizDetails, setQuizDetails] = useState<any>(null);
@@ -31,6 +33,11 @@ export default function JoinQuizPage({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!roomCode) {
+      setError("Please provide a valid room code.");
+      setIsLoading(false);
+      return;
+    }
     fetch(`/api/room/${roomCode}/status`)
       .then(async (res) => {
         const data = await res.json();

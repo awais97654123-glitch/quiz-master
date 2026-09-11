@@ -13,6 +13,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { QuizMasterLogo } from "@/components/QuizMasterLogo";
+import { sanitizeRoomCode } from "@/lib/utils";
 
 export default function JoinQuizLandingPage() {
   const router = useRouter();
@@ -24,13 +25,13 @@ export default function JoinQuizLandingPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const cleaned = roomCode.trim().toUpperCase();
+    const cleaned = sanitizeRoomCode(roomCode);
     if (!cleaned) {
-      setError("Please enter a valid quiz code");
+      setError("Please enter a valid quiz code or PIN");
       return;
     }
     setIsSubmitting(true);
-    router.push(`/join/${cleaned}`);
+    router.push(`/join/${encodeURIComponent(cleaned)}`);
   };
 
   return (

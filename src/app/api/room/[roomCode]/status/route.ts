@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { sanitizeRoomCode } from "@/lib/utils";
 
 export async function GET(
   req: NextRequest,
@@ -7,12 +8,21 @@ export async function GET(
 ) {
   try {
     const { roomCode } = await params;
+    const cleanCode = sanitizeRoomCode(roomCode);
+    const rawTrimmed = decodeURIComponent(roomCode).trim();
     const { searchParams } = new URL(req.url);
     const isQuick = searchParams.get("quick") === "1";
 
+    const orConditions: any[] = [
+      { roomCode: cleanCode },
+      { roomCode: cleanCode.toUpperCase() },
+      { id: cleanCode },
+      { name: { equals: rawTrimmed, mode: "insensitive" }, mode: "MULTIPLAYER" },
+    ];
+
     if (isQuick) {
-      const quickQuiz = await prisma.quiz.findUnique({
-        where: { roomCode },
+      const quickQuiz = await prisma.quiz.findFirst({
+        where: { OR: orConditions },
         select: {
           id: true,
           status: true,
@@ -33,8 +43,8 @@ export async function GET(
       });
     }
 
-    const quiz = await prisma.quiz.findUnique({
-      where: { roomCode },
+    const quiz = await prisma.quiz.findFirst({
+      where: { OR: orConditions },
       include: {
         creator: {
           include: { profile: true },
@@ -50,6 +60,7 @@ export async function GET(
           orderBy: { joinedAt: "asc" },
         },
       },
+      orderBy: { createdAt: "desc" },
     });
 
     if (!quiz) {

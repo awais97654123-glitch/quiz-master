@@ -4,7 +4,6 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
@@ -86,25 +85,41 @@ function LoginContent() {
       });
   }, []);
 
-  // 1. Email + Password Login
+  // 1. Native Website Email + Password Login
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
-
-    if (!auth) {
-      setError("Authentication service is unavailable. Please check your connection.");
-      setIsLoading(false);
-      return;
-    }
+    triggerGlobalLoading(true, "Signing in...");
 
     try {
-      const cred = await signInWithEmailAndPassword(auth, email, password);
-      const token = await cred.user.getIdToken();
-      await handleSyncUser(token);
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Invalid email or password");
+      }
+
+      localStorage.setItem("codequiz_token", data.token);
+      localStorage.setItem("codequiz_user", JSON.stringify(data.user));
+      window.dispatchEvent(new Event("auth_state_changed"));
+
+      if (!data.user.profileCompleted) {
+        router.push(`/profile/setup?redirect=${encodeURIComponent(redirectTarget)}`);
+      } else {
+        router.push(redirectTarget);
+      }
     } catch (err: any) {
+      setError(err.message || "Failed to sign in. Please check your credentials.");
+    } finally {
       setIsLoading(false);
-      mapFirebaseError(err);
+      triggerGlobalLoading(false);
     }
   };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -21,20 +21,64 @@ import {
   Github,
   Twitter,
   Linkedin,
+  Loader2,
 } from "lucide-react";
 import { HeroWorkstation } from "@/components/HeroWorkstation";
 import { QuizMasterLogo } from "@/components/QuizMasterLogo";
 import { AppSplashLoader } from "@/components/AppSplashLoader";
+import { sanitizeRoomCode } from "@/lib/utils";
 
 export default function HomePage() {
   const router = useRouter();
   const [roomQuery, setRoomQuery] = useState("");
+  const [roomSuggestions, setRoomSuggestions] = useState<any[]>([]);
+  const [isSearchingRooms, setIsSearchingRooms] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const q = roomQuery.trim();
+    if (q.length < 2) {
+      setRoomSuggestions([]);
+      setIsSearchingRooms(false);
+      setIsSearchOpen(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearchingRooms(true);
+      try {
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setRoomSuggestions(data.results || []);
+          setIsSearchOpen(true);
+        }
+      } catch (err) {
+        console.error("Room search error:", err);
+      } finally {
+        setIsSearchingRooms(false);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [roomQuery]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setIsSearchOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleRoomSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    const clean = roomQuery.trim().toUpperCase();
+    const clean = sanitizeRoomCode(roomQuery);
     if (clean) {
-      router.push(`/join/${clean}`);
+      router.push(`/join/${encodeURIComponent(clean)}`);
     } else {
       router.push("/join");
     }
@@ -207,14 +251,15 @@ export default function HomePage() {
               </div>
 
               {/* Center/Right: Search Bar & Action Buttons */}
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+              <div ref={searchContainerRef} className="relative flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
                 <form onSubmit={handleRoomSearch} className="relative w-full sm:w-64 md:w-72">
                   <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     value={roomQuery}
                     onChange={(e) => setRoomQuery(e.target.value)}
-                    placeholder="e.g. A7E3B9C2"
+                    onFocus={() => roomSuggestions.length > 0 && setIsSearchOpen(true)}
+                    placeholder="e.g. 89241666 or Room Name"
                     className="w-full pl-9 pr-11 py-2.5 rounded-full bg-slate-100 dark:bg-[#0D1533] border border-slate-300 dark:border-slate-700/80 focus:border-blue-500 dark:focus:border-cyan-400 text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-400/20 transition-all uppercase"
                   />
                   <button
@@ -222,9 +267,38 @@ export default function HomePage() {
                     className="absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white flex items-center justify-center transition-colors cursor-pointer shadow-xs"
                     title="Search & Join Room"
                   >
-                    <Search className="w-3.5 h-3.5" />
+                    {isSearchingRooms ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
                   </button>
                 </form>
+
+                {/* Instant Room Suggestions Dropdown */}
+                {isSearchOpen && roomSuggestions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 sm:right-auto sm:w-80 mt-2 bg-white dark:bg-[#0D1533] border border-slate-200 dark:border-slate-700/80 rounded-2xl shadow-xl z-50 overflow-hidden divide-y divide-slate-100 dark:divide-slate-800">
+                    <div className="p-2 space-y-1">
+                      <span className="px-2.5 py-1 text-[10px] font-bold uppercase text-slate-400 block tracking-wider">
+                        Matching Rooms & Topics
+                      </span>
+                      {roomSuggestions.slice(0, 4).map((item) => (
+                        <Link
+                          key={`${item.type}-${item.id}`}
+                          href={item.href}
+                          onClick={() => setIsSearchOpen(false)}
+                          className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors group"
+                        >
+                          <div className="min-w-0 pr-2">
+                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate group-hover:text-blue-500 transition-colors">
+                              {item.title}
+                            </p>
+                            <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                              {item.subtitle}
+                            </p>
+                          </div>
+                          <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-500 shrink-0" />
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <Link
                   href="/join"

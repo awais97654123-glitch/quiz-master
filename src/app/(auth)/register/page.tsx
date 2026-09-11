@@ -4,7 +4,6 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  createUserWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
@@ -97,7 +96,7 @@ function RegisterContent() {
       });
   }, []);
 
-  // 1. Email + Password Registration
+  // 1. Native Website Email + Password Registration
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -113,20 +112,32 @@ function RegisterContent() {
     }
 
     setIsLoading(true);
-
-    if (!auth) {
-      setError("Authentication service is unavailable. Please check your connection.");
-      setIsLoading(false);
-      return;
-    }
+    triggerGlobalLoading(true, "Creating your account...");
 
     try {
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
-      const token = await cred.user.getIdToken();
-      await handleSyncUser(token, name);
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Registration failed");
+      }
+
+      localStorage.setItem("codequiz_token", data.token);
+      localStorage.setItem("codequiz_user", JSON.stringify(data.user));
+      window.dispatchEvent(new Event("auth_state_changed"));
+
+      router.push(`/profile/setup?redirect=${encodeURIComponent(redirectTarget)}`);
     } catch (err: any) {
+      setError(err.message || "Registration failed. Please try again.");
+    } finally {
       setIsLoading(false);
-      mapFirebaseError(err);
+      triggerGlobalLoading(false);
     }
   };
 

@@ -17,6 +17,12 @@ import {
   HelpCircle,
   Eye,
   EyeOff,
+  Flag,
+  BookOpen,
+  Brain,
+  History,
+  Check,
+  AlertTriangle,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { formatTime, formatPercentage } from "@/lib/utils";
@@ -34,6 +40,14 @@ interface ReviewedQuestion {
   explanation: string;
   topicName: string;
   difficulty: string;
+  subtopic?: string | null;
+  previouslyIncorrect?: boolean;
+  totalAttempts?: number;
+  correctAttempts?: number;
+  incorrectAttempts?: number;
+  masteryStatus?: string;
+  mastered?: boolean;
+  nextReviewAt?: string | null;
 }
 
 export default function SingleQuizResultPage({
@@ -48,6 +62,44 @@ export default function SingleQuizResultPage({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAnswers, setShowAnswers] = useState(false);
+
+  const [reportingQuestionId, setReportingQuestionId] = useState<string | null>(null);
+  const [reportReason, setReportReason] = useState<string>("NOT_RELATED_TO_TOPIC");
+  const [reportDetails, setReportDetails] = useState("");
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [reportSuccess, setReportSuccess] = useState<string | null>(null);
+
+  const handleReportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reportingQuestionId) return;
+    const token = localStorage.getItem("codequiz_token");
+    setIsSubmittingReport(true);
+    try {
+      const res = await fetch(`/api/questions/${reportingQuestionId}/report`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          reason: reportReason,
+          details: reportDetails,
+        }),
+      });
+      if (res.ok) {
+        setReportSuccess("Report submitted for quality review. Thank you!");
+        setTimeout(() => {
+          setReportingQuestionId(null);
+          setReportSuccess(null);
+          setReportDetails("");
+        }, 1500);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("codequiz_token");
@@ -216,7 +268,7 @@ export default function SingleQuizResultPage({
               <div className="flex items-center justify-between p-3.5 rounded-xl bg-indigo-500/5 border border-indigo-500/20">
                 <div className="flex items-center gap-2.5 text-xs font-bold text-indigo-600 dark:text-indigo-400">
                   <TrendingUp className="w-4 h-4 text-indigo-500" />
-                  <span>Average Accuracy</span>
+                  <span>Current Accuracy</span>
                 </div>
                 <span className="font-bold text-sm text-indigo-600 dark:text-indigo-400">
                   {formatPercentage(result.accuracy)}
@@ -225,7 +277,7 @@ export default function SingleQuizResultPage({
             </div>
           </div>
 
-          {/* Action Buttons - Screen 6: Blue "View Answers" Button */}
+          {/* Action Buttons */}
           <div className="mt-8 pt-6 border-t border-border/60 flex flex-col sm:flex-row items-center justify-center gap-4">
             <button
               type="button"
@@ -254,6 +306,76 @@ export default function SingleQuizResultPage({
           </div>
         </div>
 
+        {/* Section 14 & 20: Learning Performance & Mistake Recovery Overview */}
+        {result.learningMetrics && (
+          <div className="bg-card border border-border/80 rounded-2xl p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-border/60 pb-3">
+              <div className="flex items-center gap-2">
+                <Brain className="w-5 h-5 text-[#1D4ED8]" />
+                <h3 className="font-black text-sm text-foreground uppercase tracking-wider">
+                  Conceptual Learning & Mistake History
+                </h3>
+              </div>
+              <span className="text-xs text-muted-foreground font-medium">
+                Tracks past mistakes independently from today's score
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 block uppercase">
+                  First-Attempt Mastery
+                </span>
+                <span className="text-xl font-black text-emerald-700 dark:text-emerald-300 mt-1 block">
+                  {result.learningMetrics.firstAttemptCorrect}
+                </span>
+                <span className="text-[10px] text-muted-foreground">0 prior mistakes</span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                <span className="text-[11px] font-bold text-blue-700 dark:text-blue-400 block uppercase flex items-center justify-center gap-1">
+                  <Sparkles className="w-3 h-3 text-blue-500" />
+                  <span>Recovered</span>
+                </span>
+                <span className="text-xl font-black text-blue-700 dark:text-blue-300 mt-1 block">
+                  {result.learningMetrics.recoveredQuestions}
+                </span>
+                <span className="text-[10px] text-muted-foreground">Conquered today</span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400 block uppercase">
+                  Past Mistakes
+                </span>
+                <span className="text-xl font-black text-amber-700 dark:text-amber-300 mt-1 block">
+                  {result.learningMetrics.previouslyMissed}
+                </span>
+                <span className="text-[10px] text-muted-foreground">Historical records</span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                <span className="text-[11px] font-bold text-rose-700 dark:text-rose-400 block uppercase">
+                  Needs Review
+                </span>
+                <span className="text-xl font-black text-rose-700 dark:text-rose-300 mt-1 block">
+                  {result.learningMetrics.needsReview}
+                </span>
+                <span className="text-[10px] text-muted-foreground">Spaced revision queue</span>
+              </div>
+
+              <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 col-span-2 sm:col-span-1">
+                <span className="text-[11px] font-bold text-purple-700 dark:text-purple-400 block uppercase">
+                  Mastered
+                </span>
+                <span className="text-xl font-black text-purple-700 dark:text-purple-300 mt-1 block">
+                  {result.learningMetrics.masteredQuestions}
+                </span>
+                <span className="text-[10px] text-muted-foreground">3+ consecutive correct</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Detailed Question Review Section (toggled by "View Answers") */}
         {showAnswers && (
           <div className="space-y-4 animate-in fade-in duration-200">
@@ -273,32 +395,71 @@ export default function SingleQuizResultPage({
                       q.isCorrect ? "border-emerald-500/30" : "border-rose-500/30"
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-4 mb-3">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="w-7 h-7 rounded-lg text-xs font-bold flex items-center justify-center bg-muted text-foreground">
                           #{idx + 1}
                         </span>
                         <span className="text-xs uppercase font-semibold text-muted-foreground">
                           {q.topicName}
                         </span>
-                      </div>
-                      <span
-                        className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full ${
-                          q.isCorrect
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                            : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
-                        }`}
-                      >
-                        {q.isCorrect ? (
-                          <>
-                            <CheckCircle2 className="w-4 h-4" /> Correct
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="w-4 h-4" /> Incorrect
-                          </>
+                        {q.subtopic && (
+                          <span className="text-[11px] px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
+                            {q.subtopic}
+                          </span>
                         )}
-                      </span>
+
+                        {/* Concept Recovery / First-Time Badge */}
+                        {q.isCorrect && q.previouslyIncorrect && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                            <Sparkles className="w-3 h-3" />
+                            <span>Recovered Concept</span>
+                          </span>
+                        )}
+                        {q.isCorrect && !q.previouslyIncorrect && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <Check className="w-3 h-3" />
+                            <span>First-Attempt Correct</span>
+                          </span>
+                        )}
+                        {!q.isCorrect && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                            <History className="w-3 h-3" />
+                            <span>Mistake Logged in History</span>
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* Report Question Button */}
+                        <button
+                          type="button"
+                          onClick={() => setReportingQuestionId(q.questionId)}
+                          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-rose-500 font-semibold transition-colors cursor-pointer px-2 py-1 rounded-lg hover:bg-muted"
+                          title="Report irrelevant or incorrect question"
+                        >
+                          <Flag className="w-3 h-3" />
+                          <span>Report</span>
+                        </button>
+
+                        <span
+                          className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full ${
+                            q.isCorrect
+                              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                              : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                          }`}
+                        >
+                          {q.isCorrect ? (
+                            <>
+                              <CheckCircle2 className="w-4 h-4" /> Correct
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="w-4 h-4" /> Incorrect
+                            </>
+                          )}
+                        </span>
+                      </div>
                     </div>
 
                     <p className="text-base font-semibold text-foreground leading-relaxed">
@@ -352,9 +513,105 @@ export default function SingleQuizResultPage({
                         <p>{q.explanation}</p>
                       </div>
                     )}
+
+                    {/* Historical Learning Record Footer (Section 21) */}
+                    <div className="mt-3 pt-3 border-t border-border/40 flex flex-wrap items-center justify-between text-[11px] text-muted-foreground gap-2">
+                      <div className="flex items-center gap-3">
+                        <span>Total Attempts: <strong className="text-foreground">{q.totalAttempts || 1}</strong></span>
+                        <span>•</span>
+                        <span>Correct: <strong className="text-emerald-600">{q.correctAttempts || (q.isCorrect ? 1 : 0)}</strong></span>
+                        <span>•</span>
+                        <span>Mistakes: <strong className="text-rose-600">{q.incorrectAttempts || (!q.isCorrect ? 1 : 0)}</strong></span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span>Mastery Stage:</span>
+                        <span className="font-bold uppercase text-foreground px-2 py-0.5 rounded bg-muted">
+                          {q.masteryStatus || "LEARNING"}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Report Question Modal */}
+        {reportingQuestionId && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-foreground font-black text-base">
+                  <AlertTriangle className="w-5 h-5 text-amber-500" />
+                  <span>Report Question</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReportingQuestionId(null)}
+                  className="text-muted-foreground hover:text-foreground text-sm font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {reportSuccess ? (
+                <div className="p-4 rounded-xl bg-emerald-500/10 text-emerald-600 text-sm font-bold text-center">
+                  {reportSuccess}
+                </div>
+              ) : (
+                <form onSubmit={handleReportSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">
+                      Reason
+                    </label>
+                    <select
+                      value={reportReason}
+                      onChange={(e) => setReportReason(e.target.value)}
+                      className="w-full p-2.5 rounded-xl bg-background border border-border text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/40"
+                    >
+                      <option value="NOT_RELATED_TO_TOPIC">Not related to selected topic</option>
+                      <option value="WRONG_ANSWER">Wrong answer marked</option>
+                      <option value="MULTIPLE_CORRECT">Multiple correct answers</option>
+                      <option value="WRONG_EXPLANATION">Explanation is inaccurate</option>
+                      <option value="UNCLEAR">Question is confusing or ambiguous</option>
+                      <option value="DUPLICATE">Duplicate question</option>
+                      <option value="TYPO">Typo or formatting issue</option>
+                      <option value="OTHER">Other issue</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-muted-foreground uppercase mb-1">
+                      Details (Optional)
+                    </label>
+                    <textarea
+                      value={reportDetails}
+                      onChange={(e) => setReportDetails(e.target.value)}
+                      placeholder="Explain what was wrong with this question..."
+                      rows={3}
+                      className="w-full p-2.5 rounded-xl bg-background border border-border text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/40 resize-none"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="submit"
+                      disabled={isSubmittingReport}
+                      className="flex-1 py-2.5 rounded-xl bg-[#1D4ED8] hover:bg-blue-700 text-white font-bold text-xs transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      {isSubmittingReport ? "Submitting..." : "Submit Report"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReportingQuestionId(null)}
+                      className="px-4 py-2.5 rounded-xl border border-border hover:bg-muted font-bold text-xs text-foreground cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         )}

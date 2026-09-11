@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAuthToken, getOrCreateDbUser } from "@/lib/firebase-admin";
 import prisma from "@/lib/prisma";
+import { sanitizeRoomCode } from "@/lib/utils";
 
 export async function POST(
   req: NextRequest,
@@ -8,6 +9,8 @@ export async function POST(
 ) {
   try {
     const { roomCode } = await params;
+    const cleanCode = sanitizeRoomCode(roomCode);
+    const rawTrimmed = decodeURIComponent(roomCode).trim();
     const authHeader = req.headers.get("authorization");
     const authUser = await verifyAuthToken(authHeader);
     if (!authUser) {
@@ -16,8 +19,15 @@ export async function POST(
 
     const dbUser = await getOrCreateDbUser(authUser);
 
-    const quiz = await prisma.quiz.findUnique({
-      where: { roomCode },
+    const quiz = await prisma.quiz.findFirst({
+      where: {
+        OR: [
+          { roomCode: cleanCode },
+          { roomCode: cleanCode.toUpperCase() },
+          { id: cleanCode },
+          { name: { equals: rawTrimmed, mode: "insensitive" }, mode: "MULTIPLAYER" },
+        ],
+      },
     });
 
     if (!quiz) {

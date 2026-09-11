@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { generateQuestionsWithGemini } from "@/lib/gemini";
+import { generateAndValidateQuestions } from "@/lib/ai-question-service";
 import { z } from "zod";
 
 const GenerateRequestSchema = z.object({
@@ -28,13 +28,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid course or topic" }, { status: 400 });
     }
 
-    // Call Gemini generation service
-    const generated = await generateQuestionsWithGemini(
-      course.name,
-      topic.name,
+    // Call Two-Stage AI Generation & Semantic Validation Service
+    const generated = await generateAndValidateQuestions({
+      courseId,
+      topicId,
+      courseName: course.name,
+      topicName: topic.name,
       difficulty,
-      count
-    );
+      count,
+    });
 
     let savedCount = 0;
     const savedQuestions = [];

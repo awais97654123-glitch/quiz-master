@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyAuthToken, getOrCreateDbUser } from "@/lib/firebase-admin";
 import prisma from "@/lib/prisma";
-import { generateRoomCode, shuffleArray } from "@/lib/utils";
-import { balanceDifficultyQuestions } from "@/lib/quiz-engine";
+import { generateRoomCode } from "@/lib/utils";
+import { getQuizQuestions } from "@/lib/quiz-selection-service";
 import { z } from "zod";
 
 const CreateQuizRoomSchema = z.object({
@@ -45,22 +45,22 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Fetch candidate questions strictly from selected topics
-    const candidates = await prisma.question.findMany({
-      where: {
-        topicId: { in: topicIds },
-      },
+    // Use Unified Master Question Selection Service (Hard Topic Isolation)
+    const selection = await getQuizQuestions({
+      userId: dbUser.id,
+      courseId,
+      topicIds,
+      count: questionCount,
     });
 
-    if (candidates.length === 0) {
-      return NextResponse.json({ error: "No questions found for the selected topics. Please choose additional topics." }, { status: 400 });
+    if (selection.totalSelected === 0) {
+      return NextResponse.json(
+        { error: "No validated questions found for the selected topics. Please choose additional topics." },
+        { status: 400 }
+      );
     }
 
-    const targetCount = Math.min(questionCount, candidates.length);
-
-    // Select balanced, randomized mix of Easy (~30%), Medium (~40%), and Hard (~30%) questions
-    const balanced = balanceDifficultyQuestions(shuffleArray(candidates), targetCount);
-    const selectedQuestionIds = balanced.map((q) => q.id);
+    const selectedQuestionIds = selection.orderedQuestionIds;
 
     // Create Quiz in WAITING status with roomCode
     const quiz = await prisma.quiz.create({
