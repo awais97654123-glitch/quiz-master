@@ -63,6 +63,9 @@ describe("Robots.txt Configuration", () => {
 
     // Verify public pages allowed
     expect(allowed).toContain("/");
+    expect(allowed).toContain("/courses");
+    expect(allowed).toContain("/courses/*");
+    expect(allowed).toContain("/practice");
     expect(allowed).toContain("/quiz");
     expect(allowed).toContain("/quiz/*");
     expect(allowed).toContain("/topics");

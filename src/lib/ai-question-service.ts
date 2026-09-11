@@ -32,14 +32,48 @@ export const ValidatedCandidateSchema = z.object({
 export type ValidatedCandidate = z.infer<typeof ValidatedCandidateSchema>;
 
 export interface QuestionValidationResult {
-  relevant: boolean;
+  relevanceScore: number;
+  correctnessScore: number;
+  difficultyScore: number;
   qualityScore: number;
+  isDuplicate: boolean;
+  isAmbiguous: boolean;
+  approved: boolean;
+  reason: string;
+  // Backward compatibility fields
+  relevant: boolean;
   conceptualValue: number;
   difficultyMatch: boolean;
   answerCorrect: boolean;
   ambiguous: boolean;
   duplicate: boolean;
-  reason: string;
+}
+
+/**
+ * Calculates token-based semantic similarity between two question strings
+ */
+function computeSemanticTokenSimilarity(textA: string, textB: string): number {
+  const cleanTokens = (t: string) =>
+    t
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 2);
+
+  const tokensA = new Set(cleanTokens(textA));
+  const tokensB = new Set(cleanTokens(textB));
+
+  if (tokensA.size === 0 || tokensB.size === 0) return 0;
+
+  let intersection = 0;
+  for (const token of tokensA) {
+    if (tokensB.has(token)) {
+      intersection++;
+    }
+  }
+
+  const union = new Set([...tokensA, ...tokensB]).size;
+  return union > 0 ? intersection / union : 0;
 }
 
 /**
@@ -65,8 +99,14 @@ export async function validateQuestionCandidate(
 
   if (!relevanceCheck.isRelevant) {
     return {
-      relevant: false,
+      relevanceScore: relevanceCheck.qualityScore,
+      correctnessScore: 0,
+      difficultyScore: 0,
       qualityScore: relevanceCheck.qualityScore,
+      isDuplicate: false,
+      isAmbiguous: true,
+      approved: false,
+      relevant: false,
       conceptualValue: 20,
       difficultyMatch: false,
       answerCorrect: false,
@@ -76,28 +116,64 @@ export async function validateQuestionCandidate(
     };
   }
 
-  // 2. Duplicate Detection (Normalized text comparison)
+  // 2. Two-Level Duplicate Detection (Level 1: Exact Normalized, Level 2: Semantic Similarity)
   const normText = normalizeText(candidate.question);
   if (existingQuestionTexts.has(normText)) {
     return {
-      relevant: true,
+      relevanceScore: relevanceCheck.qualityScore,
+      correctnessScore: 100,
+      difficultyScore: 85,
       qualityScore: 30,
+      isDuplicate: true,
+      isAmbiguous: false,
+      approved: false,
+      relevant: true,
       conceptualValue: 30,
       difficultyMatch: true,
       answerCorrect: true,
       ambiguous: false,
       duplicate: true,
-      reason: "Duplicate question already exists in target topic.",
+      reason: "Exact duplicate question already exists in target topic.",
     };
+  }
+
+  // Check semantic token similarity against existing pool
+  for (const existing of existingQuestionTexts) {
+    const similarity = computeSemanticTokenSimilarity(candidate.question, existing);
+    if (similarity >= 0.72) {
+      return {
+        relevanceScore: relevanceCheck.qualityScore,
+        correctnessScore: 100,
+        difficultyScore: 85,
+        qualityScore: 35,
+        isDuplicate: true,
+        isAmbiguous: false,
+        approved: false,
+        relevant: true,
+        conceptualValue: 35,
+        difficultyMatch: true,
+        answerCorrect: true,
+        ambiguous: false,
+        duplicate: true,
+        reason: `Semantic duplicate detected: Too similar to existing question (similarity ${(similarity * 100).toFixed(0)}%).`,
+      };
+    }
   }
 
   // 3. Option & Answer Quality Check
   const trimmedOptions = candidate.options.map((o) => o.trim());
   const uniqueOptions = new Set(trimmedOptions);
-  if (uniqueOptions.size !== 4 || !trimmedOptions.includes(candidate.correctAnswer.trim())) {
+  const answerMatchesOption = trimmedOptions.includes(candidate.correctAnswer.trim());
+  if (uniqueOptions.size !== 4 || !answerMatchesOption) {
     return {
-      relevant: true,
+      relevanceScore: relevanceCheck.qualityScore,
+      correctnessScore: 30,
+      difficultyScore: 50,
       qualityScore: 40,
+      isDuplicate: false,
+      isAmbiguous: true,
+      approved: false,
+      relevant: true,
       conceptualValue: 40,
       difficultyMatch: false,
       answerCorrect: false,
@@ -109,14 +185,17 @@ export async function validateQuestionCandidate(
 
   // 4. Explanation Quality Check (Must explain why the answer is correct)
   let conceptualValue = 85;
-  if (candidate.explanation.length < 35 || candidate.explanation.toLowerCase().includes("answer is correct because it is right")) {
+  if (
+    candidate.explanation.length < 35 ||
+    candidate.explanation.toLowerCase().includes("answer is correct because it is right")
+  ) {
     conceptualValue = 50;
   }
   if (candidate.question.length < 25) {
     conceptualValue -= 15;
   }
 
-  const finalQualityScore = Math.round((relevanceCheck.qualityScore * 0.5) + (conceptualValue * 0.5));
+  const finalQualityScore = Math.round(relevanceCheck.qualityScore * 0.5 + conceptualValue * 0.5);
 
   const passesAcceptance =
     relevanceCheck.isRelevant &&
@@ -124,8 +203,14 @@ export async function validateQuestionCandidate(
     conceptualValue >= 70;
 
   return {
-    relevant: relevanceCheck.isRelevant,
+    relevanceScore: relevanceCheck.qualityScore,
+    correctnessScore: 100,
+    difficultyScore: 90,
     qualityScore: finalQualityScore,
+    isDuplicate: false,
+    isAmbiguous: false,
+    approved: passesAcceptance,
+    relevant: relevanceCheck.isRelevant,
     conceptualValue,
     difficultyMatch: true,
     answerCorrect: true,
@@ -347,6 +432,10 @@ export function detectQuestionDuplicate(
     if (normalizeText(item.question) === normCandidate) {
       return true;
     }
+    const sim = computeSemanticTokenSimilarity(candidate.question, item.question);
+    if (sim >= 0.72) {
+      return true;
+    }
   }
   return false;
 }
@@ -387,8 +476,14 @@ export function evaluateQuestionQuality(
 
   return {
     isValid,
-    relevant: relevance.isRelevant,
+    approved: isValid,
+    relevanceScore: relevance.qualityScore,
+    correctnessScore: answerValid ? 100 : 0,
+    difficultyScore: 90,
     qualityScore: isValid ? qualityScore : Math.min(qualityScore, 40),
+    isDuplicate: isDup,
+    isAmbiguous: !optionsDistinct || !answerValid,
+    relevant: relevance.isRelevant,
     conceptualValue,
     difficultyMatch: true,
     answerCorrect: answerValid,

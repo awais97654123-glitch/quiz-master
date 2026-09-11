@@ -15,6 +15,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 1.0,
     },
     {
+      url: `${siteUrl}/courses`,
+      lastModified: currentDate,
+      changeFrequency: "daily",
+      priority: 0.95,
+    },
+    {
+      url: `${siteUrl}/practice`,
+      lastModified: currentDate,
+      changeFrequency: "daily",
+      priority: 0.9,
+    },
+    {
       url: `${siteUrl}/quiz`,
       lastModified: currentDate,
       changeFrequency: "daily",
@@ -41,7 +53,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    // Dynamic Course and Topic Pages from Database
+    // Dynamic Course and Topic Educational Guides from Database
     const courses = await prisma.course.findMany({
       include: {
         topics: {
@@ -52,20 +64,36 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       },
     });
 
-    const dynamicCourseRoutes: MetadataRoute.Sitemap = courses.map((c) => ({
-      url: `${siteUrl}/quiz/${c.slug}`,
-      lastModified: currentDate,
-      changeFrequency: "weekly",
-      priority: 0.9,
-    }));
+    const dynamicCourseRoutes: MetadataRoute.Sitemap = courses.flatMap((c) => [
+      {
+        url: `${siteUrl}/courses/${c.slug}`,
+        lastModified: currentDate,
+        changeFrequency: "weekly" as const,
+        priority: 0.9,
+      },
+      {
+        url: `${siteUrl}/quiz/${c.slug}`,
+        lastModified: currentDate,
+        changeFrequency: "weekly" as const,
+        priority: 0.85,
+      },
+    ]);
 
     const dynamicTopicRoutes: MetadataRoute.Sitemap = courses.flatMap((c) =>
-      c.topics.map((t) => ({
-        url: `${siteUrl}/quiz/${c.slug}/${t.slug}`,
-        lastModified: currentDate,
-        changeFrequency: "weekly",
-        priority: 0.8,
-      }))
+      c.topics.flatMap((t) => [
+        {
+          url: `${siteUrl}/courses/${c.slug}/${t.slug}`,
+          lastModified: currentDate,
+          changeFrequency: "weekly" as const,
+          priority: 0.85,
+        },
+        {
+          url: `${siteUrl}/quiz/${c.slug}/${t.slug}`,
+          lastModified: currentDate,
+          changeFrequency: "weekly" as const,
+          priority: 0.8,
+        },
+      ])
     );
 
     return [...staticRoutes, ...dynamicCourseRoutes, ...dynamicTopicRoutes];
@@ -74,19 +102,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Safe fallback ensuring build/sitemap never crashes
     const fallbackCourseRoutes: MetadataRoute.Sitemap = [
       {
-        url: `${siteUrl}/quiz/html`,
+        url: `${siteUrl}/courses/html`,
         lastModified: currentDate,
         changeFrequency: "weekly",
         priority: 0.9,
       },
       {
-        url: `${siteUrl}/quiz/css`,
+        url: `${siteUrl}/courses/css`,
         lastModified: currentDate,
         changeFrequency: "weekly",
         priority: 0.9,
       },
       {
-        url: `${siteUrl}/quiz/javascript`,
+        url: `${siteUrl}/courses/javascript`,
         lastModified: currentDate,
         changeFrequency: "weekly",
         priority: 0.9,

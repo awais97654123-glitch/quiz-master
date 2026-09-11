@@ -10,6 +10,9 @@ export default function robots(): MetadataRoute.Robots {
         userAgent: "*",
         allow: [
           "/",
+          "/courses",
+          "/courses/*",
+          "/practice",
           "/quiz",
           "/quiz/*",
           "/topics",
@@ -42,6 +45,9 @@ export default function robots(): MetadataRoute.Robots {
         userAgent: "Googlebot",
         allow: [
           "/",
+          "/courses",
+          "/courses/*",
+          "/practice",
           "/quiz",
           "/quiz/*",
           "/topics",

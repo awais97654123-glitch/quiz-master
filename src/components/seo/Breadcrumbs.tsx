@@ -26,19 +26,22 @@ export function Breadcrumbs({ items, className = "" }: BreadcrumbsProps) {
 
         {items.map((item, index) => {
           const isLast = index === items.length - 1;
+          const label = item.name || item.label || `Page ${index + 1}`;
+          const href = item.url || item.path || "/";
+
           return (
-            <li key={item.url} className="flex items-center gap-1.5">
+            <li key={`${href}_${index}`} className="flex items-center gap-1.5">
               <ChevronRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-600 flex-shrink-0" />
               {isLast ? (
-                <span className="font-semibold text-slate-900 dark:text-white truncate max-w-[200px] sm:max-w-none" aria-current="page">
-                  {item.name}
+                <span className="font-semibold text-slate-900 dark:white truncate max-w-[200px] sm:max-w-none" aria-current="page">
+                  {label}
                 </span>
               ) : (
                 <Link
-                  href={item.url}
+                  href={href}
                   className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors truncate max-w-[150px] sm:max-w-none"
                 >
-                  {item.name}
+                  {label}
                 </Link>
               )}
             </li>

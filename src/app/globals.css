@@ -55,11 +55,52 @@ body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   min-height: 100vh;
-  transition: background-color 250ms ease, color 250ms ease;
+  transition: background-color 200ms ease, color 200ms ease;
 }
 
-/* Subtle Floating & Pulse Animations for Minimalist Loading */
+/* Fluid UI Smooth Utilities */
+.glass-panel {
+  background: hsla(var(--card) / 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid hsla(var(--border) / 0.8);
+}
+
+.hover-lift {
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+}
+
+/* Skeleton Shimmer Loading */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted) / 0.8) 0%,
+    hsl(var(--muted-foreground) / 0.15) 50%,
+    hsl(var(--muted) / 0.8) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite ease-in-out;
+}
+
+/* Subtle Floating & Pulse Animations */
 @keyframes subtle-float {
   0%, 100% {
     transform: translateY(0px) scale(1);

@@ -20,9 +20,17 @@ import {
   GraduationCap,
   ExternalLink,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { DashboardShell } from "@/components/DashboardShell";
-import { ScoreAnalyticsChart } from "@/components/ScoreAnalyticsChart";
 import { formatPercentage, formatTime } from "@/lib/utils";
+
+const ScoreAnalyticsChart = dynamic(
+  () => import("@/components/ScoreAnalyticsChart").then((mod) => mod.ScoreAnalyticsChart),
+  {
+    ssr: false,
+    loading: () => <div className="h-64 rounded-xl animate-shimmer" />,
+  }
+);
 
 export default function DashboardPage() {
   const router = useRouter();

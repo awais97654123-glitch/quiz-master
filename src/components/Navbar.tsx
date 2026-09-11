@@ -77,9 +77,10 @@ export function Navbar() {
 
   const navLinks = [
     { href: "/", label: "Home", isActive: pathname === "/" },
-    { href: "/quiz", label: "Quizzes", isActive: pathname === "/quiz" || pathname.startsWith("/quiz/") && !pathname.includes("setup") },
+    { href: "/courses", label: "Courses", isActive: pathname.startsWith("/courses") },
+    { href: "/practice", label: "Practice", isActive: pathname.startsWith("/practice") },
     { href: "/topics", label: "Topics", isActive: pathname.startsWith("/topics") },
-    { href: "/online-test", label: "Online Tests", isActive: pathname.startsWith("/online-test") },
+    { href: "/leaderboard", label: "Leaderboard", isActive: pathname.startsWith("/leaderboard") },
     { href: "/dashboard", label: "Dashboard", isActive: pathname.startsWith("/dashboard") },
   ];
 
